@@ -1,7 +1,9 @@
 const {
     suggestDiatonicChords,
     suggestScales,
-    suggestExtensions
+    suggestExtensions,
+    suggestIntervals,
+    getChordMetadata
 } = require('../src/suggestion-engine');
 
 describe('SuggestionEngine', () => {
@@ -189,25 +191,152 @@ describe('SuggestionEngine', () => {
     });
 
     // ---------------------------------------------------------------
+    // suggestIntervals
+    // ---------------------------------------------------------------
+    describe('suggestIntervals', () => {
+        test('returns interval additions for a single note', () => {
+            // C4 = MIDI 60
+            const suggestions = suggestIntervals([60]);
+            expect(suggestions.length).toBeGreaterThan(0);
+
+            const names = suggestions.map(s => s.name);
+            expect(names).toContain('Add D#'); // +3 Minor 3rd
+            expect(names).toContain('Add E');  // +4 Major 3rd
+            expect(names).toContain('Add G');  // +7 Perfect 5th
+        });
+
+        test('returns interval additions for two notes', () => {
+            // C4 + E4 (60, 64) → need 5th, 7th etc.
+            const suggestions = suggestIntervals([60, 64]);
+            expect(suggestions.length).toBeGreaterThan(0);
+
+            const intervals = suggestions.map(s => s.interval);
+            // Should suggest Perfect 5th (+7 from lowest)
+            expect(intervals).toContain('+7');
+        });
+
+        test('each suggestion has name, interval, and result', () => {
+            const suggestions = suggestIntervals([60]);
+            for (const s of suggestions) {
+                expect(s).toHaveProperty('name');
+                expect(typeof s.name).toBe('string');
+                expect(s).toHaveProperty('interval');
+                expect(typeof s.interval).toBe('string');
+                expect(s).toHaveProperty('result');
+                expect(typeof s.result).toBe('string');
+            }
+        });
+
+        test('returns empty array for >= 3 notes', () => {
+            expect(suggestIntervals([60, 64, 67])).toEqual([]);
+            expect(suggestIntervals([60, 64, 67, 71])).toEqual([]);
+        });
+
+        test('returns empty array for no notes', () => {
+            expect(suggestIntervals([])).toEqual([]);
+            expect(suggestIntervals(new Set())).toEqual([]);
+        });
+
+        test('accepts Set<number> input', () => {
+            const suggestions = suggestIntervals(new Set([60]));
+            expect(suggestions.length).toBeGreaterThan(0);
+            expect(suggestions[0]).toHaveProperty('name');
+        });
+
+        test('predicts resulting chord for 2-note input', () => {
+            // C4(60) + E4(64), adding +7 (G) should predict C Major
+            const suggestions = suggestIntervals([60, 64]);
+            const addG = suggestions.find(s => s.interval === '+7');
+            expect(addG).toBeDefined();
+            expect(addG.result).toBe('C Major');
+        });
+
+        test('skips already-active notes', () => {
+            // C4(60) + E4(64) → +4 is E, which is already active — should skip
+            const suggestions = suggestIntervals([60, 64]);
+            const intervals = suggestions.map(s => s.interval);
+            expect(intervals).not.toContain('+4'); // E is already held
+        });
+    });
+
+    // ---------------------------------------------------------------
+    // getChordMetadata
+    // ---------------------------------------------------------------
+    describe('getChordMetadata', () => {
+        test('returns correct metadata for C Major', () => {
+            const meta = getChordMetadata('C Major');
+            expect(meta).not.toBeNull();
+            expect(meta.noteNames).toEqual(['C', 'E', 'G']);
+            expect(meta.midiNotes).toEqual([60, 64, 67]);
+            expect(meta.fingering).toEqual([1, 3, 5]);
+        });
+
+        test('returns correct metadata for A Minor', () => {
+            const meta = getChordMetadata('A Minor');
+            expect(meta).not.toBeNull();
+            expect(meta.noteNames).toEqual(['A', 'C', 'E']);
+            expect(meta.midiNotes).toEqual([69, 72, 76]);
+            expect(meta.fingering).toEqual([1, 3, 5]);
+        });
+
+        test('returns 4-finger mapping for 7th chords', () => {
+            const meta = getChordMetadata('C Maj7');
+            expect(meta).not.toBeNull();
+            expect(meta.noteNames.length).toBe(4);
+            expect(meta.midiNotes.length).toBe(4);
+            expect(meta.fingering).toEqual([1, 2, 3, 5]);
+        });
+
+        test('supports custom octave', () => {
+            const meta = getChordMetadata('C Major', 3);
+            expect(meta.midiNotes).toEqual([48, 52, 55]);
+        });
+
+        test('returns null for invalid input', () => {
+            expect(getChordMetadata(null)).toBeNull();
+            expect(getChordMetadata('')).toBeNull();
+            expect(getChordMetadata('X Unknown')).toBeNull();
+        });
+
+        test('returns null for unknown quality', () => {
+            expect(getChordMetadata('C Weird')).toBeNull();
+        });
+    });
+
+    // ---------------------------------------------------------------
     // Pure function contract
     // ---------------------------------------------------------------
     describe('Pure function guarantees', () => {
         test('functions accept only string inputs', () => {
-            // Should not throw for any input type
             expect(() => suggestDiatonicChords(123, 456)).not.toThrow();
             expect(() => suggestScales({}, [])).not.toThrow();
             expect(() => suggestExtensions(undefined)).not.toThrow();
 
-            // Non-string inputs return empty arrays
             expect(suggestDiatonicChords(123, 456)).toEqual([]);
             expect(suggestScales({}, [])).toEqual([]);
             expect(suggestExtensions(undefined)).toEqual([]);
         });
 
-        test('functions return arrays', () => {
+        test('suggestIntervals handles invalid types gracefully', () => {
+            expect(() => suggestIntervals(null)).not.toThrow();
+            expect(() => suggestIntervals('not an array')).not.toThrow();
+            expect(() => suggestIntervals(42)).not.toThrow();
+            expect(suggestIntervals(null)).toEqual([]);
+            expect(suggestIntervals('not an array')).toEqual([]);
+        });
+
+        test('getChordMetadata handles invalid types gracefully', () => {
+            expect(() => getChordMetadata(123)).not.toThrow();
+            expect(() => getChordMetadata(undefined)).not.toThrow();
+            expect(getChordMetadata(123)).toBeNull();
+        });
+
+        test('functions return correct types', () => {
             expect(Array.isArray(suggestDiatonicChords('C Major', null))).toBe(true);
             expect(Array.isArray(suggestScales('C Major', null))).toBe(true);
             expect(Array.isArray(suggestExtensions('C Major'))).toBe(true);
+            expect(Array.isArray(suggestIntervals([60]))).toBe(true);
+            expect(typeof getChordMetadata('C Major')).toBe('object');
         });
     });
 });

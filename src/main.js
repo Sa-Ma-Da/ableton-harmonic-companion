@@ -18,8 +18,8 @@ function createWindow() {
 
   win.loadFile('index.html');
 
-  // Auto-open DevTools so console errors are visible
-  win.webContents.openDevTools();
+  // DevTools: uncomment to auto-open on launch
+  // win.webContents.openDevTools();
 
   // Grant MIDI permissions
   win.webContents.session.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {

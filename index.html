@@ -30,13 +30,43 @@
         </div>
     </div>
 
+    <!-- Suggestion Panels -->
+    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:200px;background:#1a2a1a;padding:12px;border-radius:8px;border:1px solid #2a3a2a;">
+            <h4 style="margin:0 0 8px 0;font-size:0.85em;color:#66cc66;">&#9835; Chord Suggestions</h4>
+            <div id="chord-suggestions" style="font-size:0.85em;color:#aaa;line-height:1.8;">—</div>
+        </div>
+        <div style="flex:1;min-width:200px;background:#1a1a2a;padding:12px;border-radius:8px;border:1px solid #2a2a3a;">
+            <h4 style="margin:0 0 8px 0;font-size:0.85em;color:#66aacc;">&#9839; Scale Suggestions</h4>
+            <div id="scale-suggestions" style="font-size:0.85em;color:#aaa;line-height:1.8;">—</div>
+        </div>
+        <div style="flex:1;min-width:200px;background:#2a2a1a;padding:12px;border-radius:8px;border:1px solid #3a3a2a;">
+            <h4 style="margin:0 0 8px 0;font-size:0.85em;color:#ccaa66;">&#43; Extensions</h4>
+            <div id="extension-suggestions" style="font-size:0.85em;color:#aaa;line-height:1.8;">—</div>
+        </div>
+    </div>
     <div
         style="background:#222;padding:15px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.3);flex-grow:1;display:flex;flex-direction:column;">
-        <h3 style="margin:0 0 10px 0;font-size:1em;color:#aaa;">Recent Activity</h3>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <h3 style="margin:0;font-size:1em;color:#aaa;">Recent Activity</h3>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <label style="font-size:0.75em;color:#666;">Limit:</label>
+                <input id="logLimitInput" type="number" value="50" min="1" max="500"
+                    style="width:50px;padding:3px 5px;background:#333;color:#eee;border:1px solid #444;border-radius:3px;font-size:0.8em;text-align:center;">
+                <button id="logPauseBtn"
+                    style="padding:3px 10px;background:#444;color:#ccc;border:1px solid #555;border-radius:3px;cursor:pointer;font-size:0.75em;">Pause
+                    Feed</button>
+            </div>
+        </div>
         <div id="midiLog"
             style="flex-grow:1;overflow-y:auto;font-family:monospace;font-size:0.9em;color:#888;max-height:150px;">
             <!-- Log entries will appear here -->
         </div>
+    </div>
+
+    <!-- Suggestion Detail Tooltip (hidden by default) -->
+    <div id="suggestion-detail"
+        style="display:none;position:fixed;background:#2a2a2a;border:1px solid #555;border-radius:6px;padding:10px 14px;font-size:0.85em;color:#ddd;box-shadow:0 4px 12px rgba(0,0,0,0.5);z-index:1000;pointer-events:none;max-width:280px;">
     </div>
 
     <!-- Toggle Debug Button -->

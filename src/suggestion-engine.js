@@ -239,4 +239,102 @@ function suggestExtensions(currentChord) {
     return suggestions.sort((a, b) => b.confidence - a.confidence);
 }
 
-module.exports = { suggestDiatonicChords, suggestScales, suggestExtensions };
+/**
+ * Suggest interval additions when fewer than 3 notes are active.
+ *
+ * @param {Set<number>|Array<number>} activeNotes - MIDI note numbers
+ * @returns {Array<{name: string, interval: string, result: string}>}
+ */
+function suggestIntervals(activeNotes) {
+    // Normalize input
+    const notes = activeNotes instanceof Set
+        ? Array.from(activeNotes)
+        : (Array.isArray(activeNotes) ? activeNotes : []);
+
+    if (notes.length === 0 || notes.length >= 3) return [];
+
+    const sorted = [...notes].sort((a, b) => a - b);
+    const lowest = sorted[0];
+    const lowestName = NOTE_NAMES[lowest % 12];
+
+    const INTERVAL_ADDITIONS = [
+        { semitones: 3, label: 'Minor 3rd' },
+        { semitones: 4, label: 'Major 3rd' },
+        { semitones: 7, label: 'Perfect 5th' },
+        { semitones: 10, label: 'Minor 7th' },
+        { semitones: 11, label: 'Major 7th' }
+    ];
+
+    const suggestions = [];
+
+    for (const interval of INTERVAL_ADDITIONS) {
+        const newNote = lowest + interval.semitones;
+        const newNoteName = NOTE_NAMES[newNote % 12];
+
+        // Skip if this note is already active
+        if (notes.includes(newNote) || notes.includes(newNote % 12 + Math.floor(lowest / 12) * 12)) {
+            continue;
+        }
+
+        // Predict what chord the addition would form
+        const hypothetical = [...sorted, newNote].sort((a, b) => a - b);
+        let result = '—';
+
+        // Only predict chord if we'd have 3+ notes
+        if (hypothetical.length >= 3) {
+            // Use CHORD_INTERVALS to detect
+            const pitchClasses = [...new Set(hypothetical.map(n => n % 12))].sort((a, b) => a - b);
+            if (pitchClasses.length >= 3) {
+                // Try each note as root
+                for (const root of pitchClasses) {
+                    const intervals = pitchClasses.map(pc => (pc - root + 12) % 12).sort((a, b) => a - b);
+                    const key = intervals.join(',');
+                    if (CHORD_INTERVALS[key]) {
+                        result = `${NOTE_NAMES[root]} ${CHORD_INTERVALS[key]}`;
+                        break;
+                    }
+                }
+            }
+        }
+
+        suggestions.push({
+            name: `Add ${newNoteName}`,
+            interval: `+${interval.semitones}`,
+            result
+        });
+    }
+
+    return suggestions;
+}
+
+/**
+ * Get chord metadata: note names, MIDI numbers, and piano fingering.
+ *
+ * @param {string} chordName - e.g. "C Major", "A Minor"
+ * @param {number} [octave=4] - base octave for MIDI numbers
+ * @returns {{ noteNames: string[], midiNotes: number[], fingering: number[] } | null}
+ */
+function getChordMetadata(chordName, octave = 4) {
+    const parsed = parseChordOrKey(chordName);
+    if (!parsed) return null;
+
+    const intervals = getIntervalsForQuality(parsed.quality);
+    if (!intervals) return null;
+
+    const baseNote = parsed.rootPC + (octave + 1) * 12; // MIDI: C4 = 60
+
+    const midiNotes = intervals.map(i => baseNote + i);
+    const noteNames = midiNotes.map(n => NOTE_NAMES[n % 12]);
+
+    // RH piano fingering (root-position assumption)
+    const FINGERING_MAP = {
+        3: [1, 3, 5],
+        4: [1, 2, 3, 5],
+        5: [1, 2, 3, 4, 5]
+    };
+    const fingering = FINGERING_MAP[midiNotes.length] || midiNotes.map((_, i) => i + 1);
+
+    return { noteNames, midiNotes, fingering };
+}
+
+module.exports = { suggestDiatonicChords, suggestScales, suggestExtensions, suggestIntervals, getChordMetadata };

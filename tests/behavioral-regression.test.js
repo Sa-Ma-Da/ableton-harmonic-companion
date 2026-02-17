@@ -360,99 +360,608 @@ describe('BEHAVIORAL REGRESSION: Full Application Lifecycle', () => {
     });
 
     // ==================================================================
-    // LIFECYCLE: Complete Session Simulation
+    // TEST 11: Chord Suggestions Update When Chord Changes
     // ==================================================================
-    test('LIFECYCLE: Launch → Enumerate → Select → Play → Analyze → Refresh → Replay', async () => {
-        // ---- LAUNCH ----
-        expect(document.getElementById('midiInputSelect')).not.toBeNull();
+    test('11. Chord suggestions — update when chord changes', async () => {
+        const { suggestDiatonicChords } = require('../src/suggestion-engine');
 
-        // ---- ENUMERATE ----
         await manager.init();
-        const inputs = manager.getInputs();
-        expect(inputs.length).toBeGreaterThan(0);
-
-        // Populate dropdown (simulating renderer)
-        const select = document.getElementById('midiInputSelect');
-        select.innerHTML = '';
-        const defaultOpt = document.createElement('option');
-        defaultOpt.text = 'Select MIDI Device';
-        defaultOpt.value = '';
-        select.add(defaultOpt);
-        inputs.forEach(inp => {
-            const opt = document.createElement('option');
-            opt.value = inp.id;
-            opt.text = inp.name;
-            select.add(opt);
-        });
-        expect(select.options.length).toBe(2);
-
-        // ---- SELECT ----
         manager.setInput('behav-input-1');
-        expect(manager.activeInput).not.toBeNull();
 
-        // ---- PLAY: ii-V-I Progression ----
-        const chordDisplay = document.getElementById('chordDisplay');
-        const keyDisplay = document.getElementById('keyDisplay');
-        const activeDisplay = document.getElementById('activeNotesDisplay');
+        // Play C Major chord → detect → get suggestions
+        playChord([60, 64, 67]);
+        const chord1 = detectChord(manager.getActiveNotes());
+        expect(chord1).toBe('C Major');
+        keyDetector.addChord(chord1);
+        const keys1 = keyDetector.detect();
+        const key1 = `${keys1[0].root} ${keys1[0].scale}`;
 
-        // Dm
-        playChord([50, 53, 57]);
-        let notes = manager.getActiveNotes();
-        activeDisplay.innerText = notes.map(n => midiToNoteName(n)).join('  ');
-        let chord = detectChord(notes);
-        expect(chord).toBe('D Minor');
-        chordDisplay.innerText = chord;
-        keyDetector.addChord(chord);
+        const suggestions1 = suggestDiatonicChords(key1, chord1);
+        expect(suggestions1.length).toBeGreaterThan(0);
+        const names1 = suggestions1.map(s => s.name);
+        expect(names1).not.toContain('C Major'); // Current chord excluded
+
+        // Render to DOM
+        const container = document.getElementById('chord-suggestions');
+        container.innerHTML = suggestions1.map(s => `<span>${s.name}</span>`).join('');
+        expect(container.children.length).toBeGreaterThan(0);
+
+        // Change chord → A Minor
+        releaseAll([60, 64, 67]);
+        playChord([57, 60, 64]);
+        const chord2 = detectChord(manager.getActiveNotes());
+        expect(chord2).toBe('A Minor');
+
+        const suggestions2 = suggestDiatonicChords(key1, chord2);
+        const names2 = suggestions2.map(s => s.name);
+        expect(names2).not.toContain('A Minor'); // New chord excluded
+        expect(names2).toContain('C Major'); // Previous chord now suggested
+
+        // Render updated
+        container.innerHTML = suggestions2.map(s => `<span>${s.name}</span>`).join('');
+        expect(container.innerHTML).not.toBe('');
+    });
+
+    // ==================================================================
+    // TEST 12: Scale Suggestions Update When Key Changes
+    // ==================================================================
+    test('12. Scale suggestions — update when key changes', async () => {
+        const { suggestScales } = require('../src/suggestion-engine');
+
+        await manager.init();
+        manager.setInput('behav-input-1');
+        const container = document.getElementById('scale-suggestions');
+
+        // Build key: C Major (ii-V-I)
+        playChord([50, 53, 57]); // Dm
+        keyDetector.addChord(detectChord(manager.getActiveNotes()));
         releaseAll([50, 53, 57]);
 
-        // G
-        playChord([55, 59, 62]);
-        notes = manager.getActiveNotes();
-        activeDisplay.innerText = notes.map(n => midiToNoteName(n)).join('  ');
-        chord = detectChord(notes);
-        expect(chord).toBe('G Major');
-        chordDisplay.innerText = chord;
-        keyDetector.addChord(chord);
+        playChord([55, 59, 62]); // G
+        keyDetector.addChord(detectChord(manager.getActiveNotes()));
         releaseAll([55, 59, 62]);
 
-        // C
-        playChord([60, 64, 67]);
-        notes = manager.getActiveNotes();
-        activeDisplay.innerText = notes.map(n => midiToNoteName(n)).join('  ');
-        chord = detectChord(notes);
-        expect(chord).toBe('C Major');
-        chordDisplay.innerText = chord;
+        playChord([60, 64, 67]); // C
+        const chord = detectChord(manager.getActiveNotes());
         keyDetector.addChord(chord);
 
-        // ---- ANALYZE ----
         const keys = keyDetector.detect();
-        expect(keys[0].root).toBe('C');
-        expect(keys[0].scale).toBe('Major');
-        keyDisplay.innerText = `Key: ${keys[0].root} ${keys[0].scale}`;
+        const key = `${keys[0].root} ${keys[0].scale}`;
+        expect(key).toBe('C Major');
 
-        // Verify final UI state
-        expect(chordDisplay.innerText).toBe('C Major');
-        expect(keyDisplay.innerText).toBe('Key: C Major');
-        expect(activeDisplay.innerText).toBe('C4  E4  G4');
+        const scales = suggestScales(key, chord);
+        expect(scales.length).toBeGreaterThan(0);
+        const scaleNames = scales.map(s => s.name);
+        expect(scaleNames).toContain('C Major');
+
+        // Render
+        container.innerHTML = scales.map(s => `<span>${s.name}</span>`).join('');
+        expect(container.children.length).toBeGreaterThan(0);
+    });
+
+    // ==================================================================
+    // TEST 13: Extension Suggestions Update on NoteOn/NoteOff
+    // ==================================================================
+    test('13. Extension suggestions — update on NoteOn/NoteOff', async () => {
+        const { suggestExtensions } = require('../src/suggestion-engine');
+
+        await manager.init();
+        manager.setInput('behav-input-1');
+        const container = document.getElementById('extension-suggestions');
+
+        // Play C Major triad
+        playChord([60, 64, 67]);
+        const chord1 = detectChord(manager.getActiveNotes());
+        expect(chord1).toBe('C Major');
+
+        const ext1 = suggestExtensions(chord1);
+        expect(ext1.length).toBeGreaterThan(0);
+        const names1 = ext1.map(s => s.name);
+        expect(names1).toContain('C Maj7');
+
+        container.innerHTML = ext1.map(s => `<span>${s.name}</span>`).join('');
+        const before = container.innerHTML;
+
+        // Add B4 → now C Maj7 (NoteOn changes chord)
+        noteOn(71);
+        const chord2 = detectChord(manager.getActiveNotes());
+        expect(chord2).toBe('C Maj7');
+
+        const ext2 = suggestExtensions(chord2);
+        // Maj7 has no further extensions in current map
+        expect(ext2).toEqual([]);
+
+        container.innerHTML = ext2.length > 0
+            ? ext2.map(s => `<span>${s.name}</span>`).join('')
+            : '\u2014';
+        expect(container.innerHTML).not.toBe(before); // Changed
+
+        // Release B4 (NoteOff) → back to C Major
+        noteOff(71);
+        const chord3 = detectChord(manager.getActiveNotes());
+        expect(chord3).toBe('C Major');
+        const ext3 = suggestExtensions(chord3);
+        expect(ext3.length).toBeGreaterThan(0);
+    });
+
+    // ==================================================================
+    // TEST 14: Suggestions Emit After Refresh
+    // ==================================================================
+    test('14. Suggestions — emit output after refresh()', async () => {
+        const { suggestDiatonicChords, suggestScales, suggestExtensions } = require('../src/suggestion-engine');
+
+        await manager.init();
+        manager.setInput('behav-input-1');
+
+        // Play chord, build key
+        playChord([60, 64, 67]);
+        const chord = detectChord(manager.getActiveNotes());
+        keyDetector.addChord(chord);
+        const key = `${keyDetector.detect()[0].root} ${keyDetector.detect()[0].scale}`;
+
+        // Get suggestions pre-refresh
+        const pre = suggestDiatonicChords(key, chord);
+        expect(pre.length).toBeGreaterThan(0);
 
         releaseAll([60, 64, 67]);
 
         // ---- REFRESH ----
         await manager.init();
-        const refreshedInputs = manager.getInputs();
-        expect(refreshedInputs.length).toBe(1);
-
-        // ---- REPLAY (post-refresh) ----
         manager.setInput('behav-input-1');
-        playChord([57, 60, 64]); // A Minor
-        chord = detectChord(manager.getActiveNotes());
-        expect(chord).toBe('A Minor');
-        keyDetector.addChord(chord);
 
-        // Key should now shift (A minor is relative minor of C major)
-        const updatedKeys = keyDetector.detect();
-        expect(updatedKeys.length).toBeGreaterThan(0);
-        // Still mostly C Major or shifts to A Minor — either is valid
-        expect(['C', 'A']).toContain(updatedKeys[0].root);
+        // Replay same chord post-refresh
+        playChord([60, 64, 67]);
+        const chordPost = detectChord(manager.getActiveNotes());
+        expect(chordPost).toBe('C Major');
+
+        // Suggestions still work after refresh
+        const post = suggestDiatonicChords(key, chordPost);
+        expect(post.length).toBeGreaterThan(0);
+        expect(post.map(s => s.name)).toEqual(pre.map(s => s.name));
+
+        const scalesPost = suggestScales(key, chordPost);
+        expect(scalesPost.length).toBeGreaterThan(0);
+
+        const extPost = suggestExtensions(chordPost);
+        expect(extPost.length).toBeGreaterThan(0);
+    });
+
+    // ==================================================================
+    // TEST 15: Responsiveness — Analysis Cycle Timing
+    // ==================================================================
+    test('15. Responsiveness — analysis pipeline completes in <5ms', async () => {
+        const { suggestDiatonicChords, suggestScales, suggestExtensions } = require('../src/suggestion-engine');
+
+        await manager.init();
+        manager.setInput('behav-input-1');
+
+        // Prime key detector
+        keyDetector.addChord('D Minor');
+        keyDetector.addChord('G Major');
+        keyDetector.addChord('C Major');
+
+        // Play a chord
+        playChord([60, 64, 67]);
+
+        // Time the full analysis cycle
+        const start = performance.now();
+
+        const activeNotes = manager.getActiveNotes();
+        const chord = detectChord(activeNotes);
+        const keys = keyDetector.detect();
+        const key = keys.length > 0 ? `${keys[0].root} ${keys[0].scale}` : null;
+
+        suggestDiatonicChords(key, chord);
+        suggestScales(key, chord);
+        suggestExtensions(chord);
+
+        const elapsed = performance.now() - start;
+
+        // Full pipeline must complete in under 5ms
+        expect(elapsed).toBeLessThan(5);
+        console.log(`[PERF] Analysis cycle: ${elapsed.toFixed(2)}ms`);
+    });
+
+    // ==================================================================
+    // TEST 16: Interval Suggestions Appear When <3 Notes
+    // ==================================================================
+    test('16. Interval suggestions — appear when <3 notes active', async () => {
+        const { suggestIntervals } = require('../src/suggestion-engine');
+
+        await manager.init();
+        manager.setInput('behav-input-1');
+
+        // Single note: C4
+        noteOn(60);
+        const notes1 = manager.getActiveNotes();
+        expect(notes1.length).toBe(1);
+        const intervals1 = suggestIntervals(notes1);
+        expect(intervals1.length).toBeGreaterThan(0);
+        expect(intervals1[0]).toHaveProperty('name');
+        expect(intervals1[0]).toHaveProperty('interval');
+        expect(intervals1[0]).toHaveProperty('result');
+
+        // Two notes: C4 + E4
+        noteOn(64);
+        const notes2 = manager.getActiveNotes();
+        expect(notes2.length).toBe(2);
+        const intervals2 = suggestIntervals(notes2);
+        expect(intervals2.length).toBeGreaterThan(0);
+
+        // Adding G4 (now 3 notes) → intervals should be empty
+        noteOn(67);
+        const notes3 = manager.getActiveNotes();
+        expect(notes3.length).toBe(3);
+        const intervals3 = suggestIntervals(notes3);
+        expect(intervals3).toEqual([]);
+    });
+
+    // ==================================================================
+    // TEST 17: Suggestions Persist After NoteOff Clears Chord
+    // ==================================================================
+    test('17. Persistent state — suggestions persist after NoteOff clears chord', async () => {
+        const { suggestDiatonicChords, suggestExtensions } = require('../src/suggestion-engine');
+
+        await manager.init();
+        manager.setInput('behav-input-1');
+
+        // Play C Major triad
+        playChord([60, 64, 67]);
+        const chord = detectChord(manager.getActiveNotes());
+        expect(chord).toBe('C Major');
+        keyDetector.addChord(chord);
+        const key = `${keyDetector.detect()[0].root} ${keyDetector.detect()[0].scale}`;
+
+        // Cache suggestions (simulating renderer persistent state)
+        const cachedChordSugs = suggestDiatonicChords(key, chord);
+        const cachedExtSugs = suggestExtensions(chord);
+        expect(cachedChordSugs.length).toBeGreaterThan(0);
+        expect(cachedExtSugs.length).toBeGreaterThan(0);
+
+        // Release all notes → chord gone
+        releaseAll([60, 64, 67]);
+        const noChord = detectChord(manager.getActiveNotes());
+        expect(noChord).toBeNull();
+
+        // Cached suggestions should still be valid and non-empty
+        expect(cachedChordSugs.length).toBeGreaterThan(0);
+        expect(cachedExtSugs.length).toBeGreaterThan(0);
+
+        // Render cached into DOM
+        const container = document.getElementById('chord-suggestions');
+        container.innerHTML = cachedChordSugs.map(s => `<span>${s.name}</span>`).join('');
+        expect(container.children.length).toBeGreaterThan(0);
+    });
+
+    // ==================================================================
+    // TEST 18: Chord Suggestions Replaced Only on New Valid Chord
+    // ==================================================================
+    test('18. Chord suggestions — replaced only on new valid chord', async () => {
+        const { suggestDiatonicChords } = require('../src/suggestion-engine');
+
+        await manager.init();
+        manager.setInput('behav-input-1');
+
+        // Play C Major
+        playChord([60, 64, 67]);
+        const chord1 = detectChord(manager.getActiveNotes());
+        keyDetector.addChord(chord1);
+        const key = `${keyDetector.detect()[0].root} ${keyDetector.detect()[0].scale}`;
+        const sug1 = suggestDiatonicChords(key, chord1);
+        const sug1Names = sug1.map(s => s.name);
+
+        // Release → single note (no valid chord)
+        releaseAll([60, 64, 67]);
+        noteOn(62); // D4 alone
+        const noChord = detectChord(manager.getActiveNotes());
+        expect(noChord).toBeNull();
+
+        // Cached suggestions should remain unchanged
+        expect(sug1Names.length).toBeGreaterThan(0);
+
+        // Play A Minor → new valid chord → suggestions SHOULD change
+        noteOff(62);
+        playChord([57, 60, 64]);
+        const chord2 = detectChord(manager.getActiveNotes());
+        expect(chord2).toBe('A Minor');
+        const sug2 = suggestDiatonicChords(key, chord2);
+        const sug2Names = sug2.map(s => s.name);
+
+        // A Minor is now excluded, C Major is now included
+        expect(sug2Names).not.toContain('A Minor');
+        expect(sug2Names).toContain('C Major');
+        expect(sug2Names).not.toEqual(sug1Names);
+    });
+
+    // ==================================================================
+    // TEST 19: Interval Suggestions Suppressed When Chord Detected
+    // ==================================================================
+    test('19. Interval suggestions — suppressed when chord detected', async () => {
+        const { suggestIntervals } = require('../src/suggestion-engine');
+
+        await manager.init();
+        manager.setInput('behav-input-1');
+
+        // Two notes → intervals should appear
+        noteOn(60);
+        noteOn(64);
+        const intervals = suggestIntervals(manager.getActiveNotes());
+        expect(intervals.length).toBeGreaterThan(0);
+
+        // Add G4 → full chord detected → intervals should be suppressed
+        noteOn(67);
+        const chord = detectChord(manager.getActiveNotes());
+        expect(chord).toBe('C Major');
+        const noIntervals = suggestIntervals(manager.getActiveNotes());
+        expect(noIntervals).toEqual([]);
+    });
+
+    // ==================================================================
+    // TEST 20: Log Display Limit Restricts Visible Entries
+    // ==================================================================
+    test('20. Log display — limit restricts visible entries', () => {
+        const logContainer = document.getElementById('midiLog');
+        logContainer.innerHTML = '';
+
+        // Simulate adding 10 log entries
+        for (let i = 0; i < 10; i++) {
+            const entry = document.createElement('div');
+            entry.textContent = `Log entry ${i}`;
+            logContainer.appendChild(entry);
+        }
+
+        // Apply a limit of 5 by removing excess
+        const limit = 5;
+        while (logContainer.children.length > limit) {
+            logContainer.removeChild(logContainer.lastChild);
+        }
+
+        expect(logContainer.children.length).toBe(5);
+        expect(logContainer.children[0].textContent).toBe('Log entry 0');
+    });
+
+    // ==================================================================
+    // TEST 21: Changing Display Limit Triggers Re-render
+    // ==================================================================
+    test('21. Log display — changing limit triggers re-render', () => {
+        const logContainer = document.getElementById('midiLog');
+        const allEntries = [];
+
+        // Build a backlog of 20 entries
+        for (let i = 0; i < 20; i++) {
+            allEntries.push(`[00:00:00] Entry ${i}`);
+        }
+
+        // Render with limit=10
+        function renderWithLimit(limit) {
+            logContainer.innerHTML = '';
+            const visible = allEntries.slice(0, limit);
+            for (const text of visible) {
+                const entry = document.createElement('div');
+                entry.textContent = text;
+                logContainer.appendChild(entry);
+            }
+        }
+
+        renderWithLimit(10);
+        expect(logContainer.children.length).toBe(10);
+
+        // Change limit to 5 → re-render
+        renderWithLimit(5);
+        expect(logContainer.children.length).toBe(5);
+
+        // Change limit to 15 → re-render
+        renderWithLimit(15);
+        expect(logContainer.children.length).toBe(15);
+    });
+
+    // ==================================================================
+    // TEST 22: Pause Preserves Incoming Entries
+    // ==================================================================
+    test('22. Log feed — pause preserves incoming entries', () => {
+        const logContainer = document.getElementById('midiLog');
+        const backlog = [];
+        let paused = false;
+
+        function addLog(msg) {
+            backlog.unshift(msg);
+            if (!paused) {
+                const entry = document.createElement('div');
+                entry.textContent = msg;
+                logContainer.prepend(entry);
+            }
+        }
+
+        logContainer.innerHTML = '';
+        addLog('Before pause 1');
+        addLog('Before pause 2');
+        expect(logContainer.children.length).toBe(2);
+
+        // Pause
+        paused = true;
+        addLog('During pause 1');
+        addLog('During pause 2');
+        addLog('During pause 3');
+
+        // UI should NOT have updated
+        expect(logContainer.children.length).toBe(2);
+        // Backlog should have all 5
+        expect(backlog.length).toBe(5);
+    });
+
+    // ==================================================================
+    // TEST 23: Resume Restores Feed Within Limit
+    // ==================================================================
+    test('23. Log feed — resume restores feed within limit', () => {
+        const logContainer = document.getElementById('midiLog');
+        const backlog = [];
+        let paused = false;
+        const limit = 3;
+
+        function addLog(msg) {
+            backlog.unshift(msg);
+        }
+
+        function renderFeed() {
+            logContainer.innerHTML = '';
+            const visible = backlog.slice(0, limit);
+            for (const text of visible) {
+                const entry = document.createElement('div');
+                entry.textContent = text;
+                logContainer.appendChild(entry);
+            }
+        }
+
+        // Add 5 entries while "paused"
+        paused = true;
+        for (let i = 0; i < 5; i++) addLog(`Entry ${i}`);
+        logContainer.innerHTML = '';
+        expect(logContainer.children.length).toBe(0);
+
+        // Resume → render within limit
+        paused = false;
+        renderFeed();
+        expect(logContainer.children.length).toBe(limit);
+        expect(logContainer.children[0].textContent).toBe('Entry 4');
+    });
+
+    // ==================================================================
+    // TEST 24: Suggestion Hover/Click Triggers Metadata Display
+    // ==================================================================
+    test('24. Suggestion interaction — hover/click triggers metadata', () => {
+        const { getChordMetadata } = require('../src/suggestion-engine');
+
+        const meta = getChordMetadata('C Major');
+        expect(meta).not.toBeNull();
+
+        // Build tooltip HTML
+        const detailContainer = document.getElementById('suggestion-detail');
+        const html = `<strong>C Major</strong><br>` +
+            `Notes: ${meta.noteNames.join(' - ')}<br>` +
+            `MIDI: ${meta.midiNotes.join(' - ')}<br>` +
+            `Fingering (RH): ${meta.fingering.join(' - ')}`;
+
+        detailContainer.innerHTML = html;
+        detailContainer.style.display = 'block';
+
+        expect(detailContainer.style.display).toBe('block');
+        expect(detailContainer.innerHTML).toContain('C Major');
+        expect(detailContainer.innerHTML).toContain('60 - 64 - 67');
+        expect(detailContainer.innerHTML).toContain('1 - 3 - 5');
+    });
+
+    // ==================================================================
+    // TEST 25: Metadata Contains Note Names, MIDI Numbers, Fingering
+    // ==================================================================
+    test('25. Metadata format — includes note names, MIDI, fingering', () => {
+        const { getChordMetadata } = require('../src/suggestion-engine');
+
+        const meta = getChordMetadata('A Minor');
+        expect(meta).not.toBeNull();
+        expect(meta).toHaveProperty('noteNames');
+        expect(meta).toHaveProperty('midiNotes');
+        expect(meta).toHaveProperty('fingering');
+        expect(meta.noteNames).toEqual(['A', 'C', 'E']);
+        expect(meta.midiNotes).toEqual([69, 72, 76]);
+        expect(meta.fingering).toEqual([1, 3, 5]);
+    });
+
+    // ==================================================================
+    // TEST 26: Interval Suggestion Metadata
+    // ==================================================================
+    test('26. Interval suggestion — metadata for resulting chord', async () => {
+        const { suggestIntervals, getChordMetadata } = require('../src/suggestion-engine');
+
+        await manager.init();
+        manager.setInput('behav-input-1');
+
+        noteOn(60);
+        noteOn(64);
+        const intervals = suggestIntervals(manager.getActiveNotes());
+
+        // Find add-G suggestion (+7) → should predict C Major
+        const addG = intervals.find(s => s.interval === '+7');
+        expect(addG).toBeDefined();
+        expect(addG.result).toBe('C Major');
+
+        // Get metadata for the predicted chord
+        const meta = getChordMetadata(addG.result);
+        expect(meta).not.toBeNull();
+        expect(meta.noteNames).toEqual(['C', 'E', 'G']);
+        expect(meta.fingering).toEqual([1, 3, 5]);
+    });
+
+    // ==================================================================
+    // TEST 27: Cached Suggestions Unchanged During Feed Pause
+    // ==================================================================
+    test('27. Persistence — cached suggestions unchanged during pause', async () => {
+        const { suggestDiatonicChords, suggestExtensions } = require('../src/suggestion-engine');
+
+        await manager.init();
+        manager.setInput('behav-input-1');
+
+        // Play C Major → build suggestions
+        playChord([60, 64, 67]);
+        const chord = detectChord(manager.getActiveNotes());
+        expect(chord).toBe('C Major');
+        keyDetector.addChord(chord);
+        const key = `${keyDetector.detect()[0].root} ${keyDetector.detect()[0].scale}`;
+
+        const cached = {
+            chord: suggestDiatonicChords(key, chord),
+            extension: suggestExtensions(chord)
+        };
+
+        const chordSnapshot = JSON.stringify(cached);
+
+        // "Pause" the log feed (simulate)
+        let paused = true;
+
+        // Continue generating events
+        releaseAll([60, 64, 67]);
+        noteOn(62);
+        noteOff(62);
+
+        // Verify cached suggestions are unchanged
+        expect(JSON.stringify(cached)).toBe(chordSnapshot);
+        expect(cached.chord.length).toBeGreaterThan(0);
+        expect(cached.extension.length).toBeGreaterThan(0);
+    });
+
+    // ==================================================================
+    // TEST 28: Interaction Does Not Invalidate Persistent State
+    // ==================================================================
+    test('28. Persistence — interaction does not invalidate state', async () => {
+        const { suggestDiatonicChords, suggestExtensions, getChordMetadata } = require('../src/suggestion-engine');
+
+        await manager.init();
+        manager.setInput('behav-input-1');
+
+        // Build persistent state
+        playChord([60, 64, 67]);
+        const chord = detectChord(manager.getActiveNotes());
+        keyDetector.addChord(chord);
+        const key = `${keyDetector.detect()[0].root} ${keyDetector.detect()[0].scale}`;
+
+        const lastValidChord = chord;
+        const lastValidKey = key;
+        const lastSuggestions = {
+            chord: suggestDiatonicChords(key, chord),
+            extension: suggestExtensions(chord)
+        };
+
+        // Simulate interaction: get metadata (shouldn't mutate state)
+        const meta = getChordMetadata(lastSuggestions.chord[0].name);
+        expect(meta).not.toBeNull();
+
+        // Verify persistent state is untouched
+        expect(lastValidChord).toBe('C Major');
+        expect(lastValidKey).toBe(key);
+        expect(lastSuggestions.chord.length).toBeGreaterThan(0);
+        expect(lastSuggestions.extension.length).toBeGreaterThan(0);
+
+        // Re-calling suggestions with same inputs → identical output
+        const regen = suggestDiatonicChords(lastValidKey, lastValidChord);
+        expect(regen).toEqual(lastSuggestions.chord);
     });
 });
