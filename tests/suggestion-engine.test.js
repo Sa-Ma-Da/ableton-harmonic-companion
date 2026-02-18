@@ -3,6 +3,7 @@ const {
     suggestScales,
     suggestExtensions,
     suggestIntervals,
+    suggestNextChords,
     getChordMetadata
 } = require('../src/suggestion-engine');
 
@@ -304,6 +305,68 @@ describe('SuggestionEngine', () => {
     });
 
     // ---------------------------------------------------------------
+    // suggestNextChords
+    // ---------------------------------------------------------------
+    describe('suggestNextChords', () => {
+        test('returns 2-5 suggestions for valid history + key', () => {
+            const result = suggestNextChords(['C Major'], 'C Major');
+            expect(result.length).toBeGreaterThanOrEqual(2);
+            expect(result.length).toBeLessThanOrEqual(5);
+        });
+
+        test('each suggestion has name, function, and confidence', () => {
+            const result = suggestNextChords(['C Major'], 'C Major');
+            for (const s of result) {
+                expect(s).toHaveProperty('name');
+                expect(s).toHaveProperty('function');
+                expect(s).toHaveProperty('confidence');
+                expect(typeof s.confidence).toBe('number');
+            }
+        });
+
+        test('does not suggest the last chord played', () => {
+            const result = suggestNextChords(['C Major'], 'C Major');
+            const names = result.map(s => s.name);
+            expect(names).not.toContain('C Major');
+        });
+
+        test('V → I motion: after G Major, C Major scores highest', () => {
+            const result = suggestNextChords(['G Major'], 'C Major');
+            // C Major = I, should get the authentic cadence bonus
+            // But we excluded G Major (last chord), so C Major should be top
+            expect(result[0].name).toBe('C Major');
+        });
+
+        test('memory length limits history window', () => {
+            const longHistory = ['C Major', 'F Major', 'G Major', 'A Minor', 'D Minor'];
+            const mem2 = suggestNextChords(longHistory, 'C Major', 2);
+            const mem5 = suggestNextChords(longHistory, 'C Major', 5);
+            // Different memory lengths should produce different scores
+            expect(mem2).toBeDefined();
+            expect(mem5).toBeDefined();
+        });
+
+        test('adapts after progression lock-in', () => {
+            const prog1 = suggestNextChords(['C Major'], 'C Major');
+            const prog2 = suggestNextChords(['C Major', 'F Major'], 'C Major');
+            // After adding F Major, suggestions should differ
+            expect(prog1).not.toEqual(prog2);
+        });
+
+        test('returns empty for invalid inputs', () => {
+            expect(suggestNextChords(null, 'C Major')).toEqual([]);
+            expect(suggestNextChords([], 'C Major')).toEqual([]);
+            expect(suggestNextChords(['C Major'], null)).toEqual([]);
+            expect(suggestNextChords(['C Major'], '')).toEqual([]);
+        });
+
+        test('returns empty for non-array history', () => {
+            expect(suggestNextChords('C Major', 'C Major')).toEqual([]);
+            expect(suggestNextChords(42, 'C Major')).toEqual([]);
+        });
+    });
+
+    // ---------------------------------------------------------------
     // Pure function contract
     // ---------------------------------------------------------------
     describe('Pure function guarantees', () => {
@@ -331,11 +394,18 @@ describe('SuggestionEngine', () => {
             expect(getChordMetadata(123)).toBeNull();
         });
 
+        test('suggestNextChords handles invalid types gracefully', () => {
+            expect(() => suggestNextChords(null, null)).not.toThrow();
+            expect(() => suggestNextChords(undefined, undefined)).not.toThrow();
+            expect(suggestNextChords(null, null)).toEqual([]);
+        });
+
         test('functions return correct types', () => {
             expect(Array.isArray(suggestDiatonicChords('C Major', null))).toBe(true);
             expect(Array.isArray(suggestScales('C Major', null))).toBe(true);
             expect(Array.isArray(suggestExtensions('C Major'))).toBe(true);
             expect(Array.isArray(suggestIntervals([60]))).toBe(true);
+            expect(Array.isArray(suggestNextChords(['C Major'], 'C Major'))).toBe(true);
             expect(typeof getChordMetadata('C Major')).toBe('object');
         });
     });

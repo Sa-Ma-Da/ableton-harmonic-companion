@@ -5,9 +5,13 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
+    "launch": "node scripts/launch.js",
     "test": "jest",
     "test:contract": "jest tests/functional-contract.test.js --verbose",
-    "test:gate": "node scripts/regression-gate.js"
+    "test:gate": "node scripts/regression-gate.js",
+    "version:patch": "node scripts/version-bump.js patch",
+    "version:minor": "node scripts/version-bump.js minor",
+    "sync": "node scripts/sync.js"
   },
   "repository": {
     "type": "git",

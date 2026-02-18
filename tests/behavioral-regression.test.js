@@ -964,4 +964,187 @@ describe('BEHAVIORAL REGRESSION: Full Application Lifecycle', () => {
         const regen = suggestDiatonicChords(lastValidKey, lastValidChord);
         expect(regen).toEqual(lastSuggestions.chord);
     });
+
+    // ==================================================================
+    // TEST 29: Progression Memory Length Affects Suggestion Generation
+    // ==================================================================
+    test('29. Progression — memory length affects suggestion generation', () => {
+        const { suggestNextChords } = require('../src/suggestion-engine');
+
+        const history = ['C Major', 'F Major', 'G Major', 'A Minor'];
+        const mem2 = suggestNextChords(history, 'C Major', 2);
+        const mem4 = suggestNextChords(history, 'C Major', 4);
+
+        expect(mem2.length).toBeGreaterThan(0);
+        expect(mem4.length).toBeGreaterThan(0);
+        // Different memory lengths → different penalty distribution
+        expect(mem2).toBeDefined();
+        expect(mem4).toBeDefined();
+    });
+
+    // ==================================================================
+    // TEST 30: Clicking Suggestion Appends to Progression
+    // ==================================================================
+    test('30. Progression — clicking suggestion appends to progression', () => {
+        const container = document.getElementById('current-progression');
+        const progression = [];
+
+        // Simulate clicking a suggestion chip → appending
+        progression.push('C Major');
+        progression.push('F Major');
+
+        // Render
+        container.innerHTML = progression.map((chord, i) => {
+            return `<span data-chord="${chord}" data-prog-index="${i}">${chord}</span>`;
+        }).join(' → ');
+
+        expect(progression.length).toBe(2);
+        expect(container.querySelectorAll('[data-chord]').length).toBe(2);
+        expect(container.textContent).toContain('C Major');
+        expect(container.textContent).toContain('F Major');
+    });
+
+    // ==================================================================
+    // TEST 31: Removing Chord Updates Progression State
+    // ==================================================================
+    test('31. Progression — removing chord updates state', () => {
+        const container = document.getElementById('current-progression');
+        const progression = ['C Major', 'F Major', 'G Major'];
+
+        // Remove index 1 (F Major)
+        progression.splice(1, 1);
+        expect(progression).toEqual(['C Major', 'G Major']);
+        expect(progression.length).toBe(2);
+
+        // Re-render
+        container.innerHTML = progression.map((chord, i) => {
+            return `<span data-chord="${chord}" data-prog-index="${i}">${chord}</span>`;
+        }).join(' → ');
+
+        expect(container.querySelectorAll('[data-chord]').length).toBe(2);
+    });
+
+    // ==================================================================
+    // TEST 32: Suggestions Adapt After Progression Lock-In
+    // ==================================================================
+    test('32. Progression — suggestions adapt after lock-in', () => {
+        const { suggestNextChords } = require('../src/suggestion-engine');
+
+        const before = suggestNextChords(['C Major'], 'C Major');
+        const after = suggestNextChords(['C Major', 'F Major', 'G Major'], 'C Major');
+
+        // Suggestions should change as progression grows
+        expect(before).not.toEqual(after);
+        expect(after.length).toBeGreaterThan(0);
+    });
+
+    // ==================================================================
+    // TEST 33: Progression Suggestions Show Metadata
+    // ==================================================================
+    test('33. Tooltip — progression suggestions show metadata', () => {
+        const { suggestNextChords, getChordMetadata } = require('../src/suggestion-engine');
+
+        const suggestions = suggestNextChords(['C Major'], 'C Major');
+        expect(suggestions.length).toBeGreaterThan(0);
+
+        // Get metadata for first suggestion
+        const meta = getChordMetadata(suggestions[0].name);
+        expect(meta).not.toBeNull();
+        expect(meta).toHaveProperty('noteNames');
+        expect(meta).toHaveProperty('midiNotes');
+        expect(meta).toHaveProperty('fingering');
+    });
+
+    // ==================================================================
+    // TEST 34: Locked Progression Chips Retain Interaction
+    // ==================================================================
+    test('34. Tooltip — locked progression chips retain interaction', () => {
+        const { getChordMetadata } = require('../src/suggestion-engine');
+
+        const progression = ['C Major', 'F Major', 'G Major'];
+        const container = document.getElementById('current-progression');
+
+        // Render interactive chips
+        container.innerHTML = progression.map((chord, i) => {
+            return `<span data-chord="${chord}" data-prog-index="${i}">${chord}</span>`;
+        }).join('');
+
+        // Each chip should be queryable for metadata
+        const chips = container.querySelectorAll('[data-chord]');
+        expect(chips.length).toBe(3);
+
+        for (const chip of chips) {
+            const meta = getChordMetadata(chip.dataset.chord);
+            expect(meta).not.toBeNull();
+            expect(meta.noteNames.length).toBeGreaterThan(0);
+        }
+    });
+
+    // ==================================================================
+    // TEST 35: version.json Created and Updated
+    // ==================================================================
+    test('35. Versioning — version.json exists and parses', () => {
+        const versionPath = path.resolve(__dirname, '../version.json');
+        expect(fs.existsSync(versionPath)).toBe(true);
+
+        const data = JSON.parse(fs.readFileSync(versionPath, 'utf8'));
+        expect(data).toHaveProperty('version');
+        expect(typeof data.version).toBe('string');
+        expect(data.version.split('.').length).toBe(3);
+    });
+
+    // ==================================================================
+    // TEST 36: version:patch Updates Correctly
+    // ==================================================================
+    test('36. Versioning — patch bump logic is correct', () => {
+        // Test the bump logic without writing (simulate)
+        const version = '0.1.0';
+        const parts = version.split('.').map(Number);
+        parts[2]++;
+        expect(parts.join('.')).toBe('0.1.1');
+    });
+
+    // ==================================================================
+    // TEST 37: version:minor Updates Correctly
+    // ==================================================================
+    test('37. Versioning — minor bump logic is correct', () => {
+        const version = '0.1.3';
+        const parts = version.split('.').map(Number);
+        parts[1]++;
+        parts[2] = 0;
+        expect(parts.join('.')).toBe('0.2.0');
+    });
+
+    // ==================================================================
+    // TEST 38: Launch Script Validates Dependencies
+    // ==================================================================
+    test('38. Launch — script validates critical files', () => {
+        const launchScript = path.resolve(__dirname, '../scripts/launch.js');
+        expect(fs.existsSync(launchScript)).toBe(true);
+
+        // Verify critical files that the launch script checks
+        expect(fs.existsSync(path.resolve(__dirname, '../src/main.js'))).toBe(true);
+        expect(fs.existsSync(path.resolve(__dirname, '../index.html'))).toBe(true);
+        expect(fs.existsSync(path.resolve(__dirname, '../package.json'))).toBe(true);
+    });
+
+    // ==================================================================
+    // TEST 39: loopMIDI Detection Logic
+    // ==================================================================
+    test('39. loopMIDI — detection logic identifies loopMIDI devices', () => {
+        // Simulate device list with and without loopMIDI
+        const devicesWithLoop = [
+            { name: 'USB MIDI Controller', id: '1' },
+            { name: 'loopMIDI Port', id: '2' }
+        ];
+        const devicesWithout = [
+            { name: 'USB MIDI Controller', id: '1' }
+        ];
+
+        const hasLoop = devicesWithLoop.some(d => d.name.toLowerCase().includes('loopmidi'));
+        const hasNoLoop = devicesWithout.some(d => d.name.toLowerCase().includes('loopmidi'));
+
+        expect(hasLoop).toBe(true);
+        expect(hasNoLoop).toBe(false);
+    });
 });

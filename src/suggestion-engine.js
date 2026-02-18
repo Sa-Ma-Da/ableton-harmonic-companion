@@ -308,6 +308,121 @@ function suggestIntervals(activeNotes) {
 }
 
 /**
+ * Suggest next chords based on chord history, key, and progression memory.
+ * Uses common harmonic motion patterns to score candidates.
+ *
+ * @param {string[]} chordHistory - Array of chord names, most recent last
+ * @param {string} key - e.g. "C Major"
+ * @param {number} [memoryLength=3] - How many previous chords to consider
+ * @returns {Array<{name: string, function?: string, confidence: number}>}
+ */
+function suggestNextChords(chordHistory, key, memoryLength = 3) {
+    if (!Array.isArray(chordHistory) || chordHistory.length === 0) return [];
+
+    const parsedKey = parseChordOrKey(key);
+    if (!parsedKey) return [];
+
+    const scaleIntervals = SCALES[parsedKey.quality];
+    if (!scaleIntervals || scaleIntervals.length < 7) return [];
+
+    // Build diatonic chord table: degree → { name, rootPC, quality }
+    const diatonic = [];
+    for (let degree = 0; degree < 7; degree++) {
+        const triad = buildTriadOnDegree(scaleIntervals, degree);
+        if (!triad || !triad.quality) continue;
+        const absoluteRoot = (parsedKey.rootPC + scaleIntervals[degree]) % 12;
+        diatonic.push({
+            degree,
+            name: `${NOTE_NAMES[absoluteRoot]} ${triad.quality}`,
+            degreeName: DEGREE_NAMES[degree],
+            rootPC: absoluteRoot,
+            quality: triad.quality
+        });
+    }
+
+    if (diatonic.length === 0) return [];
+
+    // Get recent history window
+    const recentHistory = chordHistory.slice(-memoryLength);
+    const lastChord = recentHistory[recentHistory.length - 1];
+    const parsedLast = parseChordOrKey(lastChord);
+
+    // Map last chord to degree
+    let lastDegree = -1;
+    if (parsedLast) {
+        const match = diatonic.find(d => d.rootPC === parsedLast.rootPC && d.quality === parsedLast.quality);
+        if (match) lastDegree = match.degree;
+    }
+
+    // Common harmonic motion rules: from degree → to degree → bonus
+    const MOTION_RULES = [
+        // V → I (authentic cadence)
+        { from: 4, to: 0, bonus: 0.35 },
+        // IV → V (pre-dominant → dominant)
+        { from: 3, to: 4, bonus: 0.25 },
+        // I → IV (plagal motion)
+        { from: 0, to: 3, bonus: 0.2 },
+        // I → V (tonic → dominant)
+        { from: 0, to: 4, bonus: 0.2 },
+        // vi → IV (common pop progression)
+        { from: 5, to: 3, bonus: 0.2 },
+        // V → vi (deceptive cadence)
+        { from: 4, to: 5, bonus: 0.15 },
+        // ii → V (jazz ii-V)
+        { from: 1, to: 4, bonus: 0.25 },
+        // I → vi (relative minor)
+        { from: 0, to: 5, bonus: 0.15 },
+        // IV → I (plagal cadence)
+        { from: 3, to: 0, bonus: 0.3 },
+        // iii → vi (mediant motion)
+        { from: 2, to: 5, bonus: 0.1 },
+        // vi → ii (descending fifths)
+        { from: 5, to: 1, bonus: 0.15 }
+    ];
+
+    // Score each diatonic chord
+    const scored = diatonic.map(candidate => {
+        let score = candidate.degree === 0 ? 0.5 :
+            candidate.degree === 4 ? 0.4 :
+                candidate.degree === 3 ? 0.35 :
+                    candidate.degree === 5 ? 0.3 : 0.2;
+
+        // Apply motion rules from last chord
+        if (lastDegree >= 0) {
+            for (const rule of MOTION_RULES) {
+                if (rule.from === lastDegree && rule.to === candidate.degree) {
+                    score += rule.bonus;
+                    break;
+                }
+            }
+        }
+
+        // Penalize repeating the last chord
+        if (parsedLast && candidate.rootPC === parsedLast.rootPC && candidate.quality === parsedLast.quality) {
+            score -= 1.0;
+        }
+
+        // Small penalty for chords already in recent history
+        for (const histChord of recentHistory) {
+            const parsed = parseChordOrKey(histChord);
+            if (parsed && candidate.rootPC === parsed.rootPC && candidate.quality === parsed.quality) {
+                score -= 0.1;
+            }
+        }
+
+        return {
+            name: candidate.name,
+            function: candidate.degreeName,
+            confidence: Math.max(0, Math.min(1, score))
+        };
+    });
+
+    // Sort by confidence descending, take top 2–5
+    scored.sort((a, b) => b.confidence - a.confidence);
+    return scored.filter(s => s.confidence > 0).slice(0, 5);
+}
+
+/**
  * Get chord metadata: note names, MIDI numbers, and piano fingering.
  *
  * @param {string} chordName - e.g. "C Major", "A Minor"
@@ -337,4 +452,5 @@ function getChordMetadata(chordName, octave = 4) {
     return { noteNames, midiNotes, fingering };
 }
 
-module.exports = { suggestDiatonicChords, suggestScales, suggestExtensions, suggestIntervals, getChordMetadata };
+module.exports = { suggestDiatonicChords, suggestScales, suggestExtensions, suggestIntervals, suggestNextChords, getChordMetadata };
+

@@ -5,6 +5,14 @@
     style="background:#111;color:#eee;font-family:'Segoe UI', sans-serif;margin:0;padding:20px;display:flex;flex-direction:column;gap:20px;">
     <h1 style="font-weight:300;letter-spacing:1px;margin-bottom:10px;">Ableton Harmonic Companion</h1>
 
+    <!-- loopMIDI Bridge -->
+    <div id="loopMidiBridge" style="display:none;background:#2a1a1a;padding:10px 15px;border-radius:8px;border:1px solid #442222;display:flex;align-items:center;gap:12px;">
+        <span style="color:#cc8866;font-size:0.85em;">⚠ loopMIDI not detected</span>
+        <button id="launchLoopMidiBtn"
+            style="padding:5px 12px;background:#553322;color:#eee;border:1px solid #664433;border-radius:4px;cursor:pointer;font-size:0.8em;">Launch MIDI Bridge</button>
+        <span id="loopMidiStatus" style="color:#888;font-size:0.75em;"></span>
+    </div>
+
     <div style="background:#222;padding:15px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.3);">
         <label for="midiInputSelect" style="display:block;margin-bottom:8px;font-size:0.9em;color:#aaa;">MIDI Input
             Device</label>
@@ -45,6 +53,31 @@
             <div id="extension-suggestions" style="font-size:0.85em;color:#aaa;line-height:1.8;">—</div>
         </div>
     </div>
+
+    <!-- Progression Builder Panel -->
+    <div style="background:#1a1a22;padding:15px;border-radius:8px;border:1px solid #2a2a3a;box-shadow:0 4px 6px rgba(0,0,0,0.3);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <h3 style="margin:0;font-size:1em;color:#bb88ff;">&#9836; Progression Builder</h3>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <label style="font-size:0.75em;color:#666;">Memory:</label>
+                <input id="progressionMemoryInput" type="number" value="3" min="1" max="10"
+                    style="width:40px;padding:3px 5px;background:#333;color:#eee;border:1px solid #444;border-radius:3px;font-size:0.8em;text-align:center;">
+                <button id="clearProgressionBtn"
+                    style="padding:3px 10px;background:#442233;color:#cc8899;border:1px solid #553344;border-radius:3px;cursor:pointer;font-size:0.75em;">Clear</button>
+            </div>
+        </div>
+
+        <div style="margin-bottom:10px;">
+            <div style="font-size:0.75em;color:#7766aa;margin-bottom:4px;">Suggested Next Chords:</div>
+            <div id="progression-suggestions" style="font-size:0.85em;color:#aaa;line-height:1.8;">—</div>
+        </div>
+
+        <div>
+            <div style="font-size:0.75em;color:#7766aa;margin-bottom:4px;">Current Progression:</div>
+            <div id="current-progression" style="font-size:0.9em;color:#ddd;line-height:2;min-height:28px;">—</div>
+        </div>
+    </div>
+
     <div
         style="background:#222;padding:15px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.3);flex-grow:1;display:flex;flex-direction:column;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
@@ -85,6 +118,11 @@
                 style="padding:2px 8px;background:#500;color:white;border:1px solid #700;cursor:pointer;">DevTools</button>
         </div>
         <pre id="debugDeviceList" style="margin:0;white-space:pre-wrap;">Initializing...</pre>
+    </div>
+
+    <!-- Version Footer -->
+    <div id="version-footer" style="text-align:center;font-size:0.7em;color:#444;padding:5px 0;border-top:1px solid #222;">
+        v—
     </div>
 
     <script>

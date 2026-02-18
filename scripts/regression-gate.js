@@ -63,7 +63,7 @@ const COMPONENT_MAP = {
     'suggestion-engine.test.js': {
         component: 'Suggestion Engine',
         files: ['src/suggestion-engine.js', 'src/scale-dictionary.js', 'src/chord-dictionary.js'],
-        description: 'Harmonic suggestions: diatonic chords, scale recommendations, chord extensions'
+        description: 'Harmonic suggestions: diatonic chords, scale recommendations, chord extensions, progression builder, chord metadata'
     }
 };
 
