@@ -10,16 +10,17 @@ class MidiManager extends EventEmitter {
 
     async init() {
         try {
-            this.midiAccess = await navigator.requestMIDIAccess();
+            console.log('[MidiManager] Requesting MIDI Access...');
+            this.midiAccess = await navigator.requestMIDIAccess({ sysex: false });
             // Listen for state changes (plug/unplug)
             this.midiAccess.onstatechange = (e) => {
-                console.log(`MIDI State Change: ${e.port.name} (${e.port.state})`);
+                console.log(`[MidiManager] State Change: ${e.port.name} (${e.port.state})`);
                 this.emit('state-change', e);
             };
-            console.log('MIDI Access initialized');
+            console.log('[MidiManager] MIDI Access initialized');
             return true;
         } catch (err) {
-            console.error('MIDI Access Failed:', err);
+            console.error('[MidiManager] MIDI Access Failed:', err);
             return false;
         }
     }
@@ -30,6 +31,10 @@ class MidiManager extends EventEmitter {
     }
 
     setInput(inputId) {
+        if (!this.midiAccess) {
+            console.warn('[MidiManager] Cannot set input: midiAccess not initialized');
+            return;
+        }
         if (this.activeInput) {
             this.activeInput.onmidimessage = null; // Detach previous listener
         }
@@ -38,9 +43,9 @@ class MidiManager extends EventEmitter {
         if (input) {
             this.activeInput = input;
             this.activeInput.onmidimessage = (msg) => this.handleMidiMessage(msg);
-            console.log(`MIDI Input set to: ${input.name}`);
+            console.log(`[MidiManager] Input set to: ${input.name}`);
         } else {
-            console.warn(`MIDI Input ${inputId} not found.`);
+            console.warn(`[MidiManager] Input ${inputId} not found.`);
         }
     }
 
@@ -52,12 +57,12 @@ class MidiManager extends EventEmitter {
         // Note On (144) with velocity > 0
         if (command === 144 && data2 > 0) {
             this.activeNotes.add(data1);
-            this.emit('note-on', { note: data1, velocity: data2, channel });
+            this.emit('note-on', { note: data1, velocity: data2, channel, type: 'note-on' });
         }
         // Note Off (128) or Note On with velocity 0
         else if (command === 128 || (command === 144 && data2 === 0)) {
             this.activeNotes.delete(data1);
-            this.emit('note-off', { note: data1, velocity: data2, channel });
+            this.emit('note-off', { note: data1, velocity: data2, channel, type: 'note-off' });
         }
     }
 

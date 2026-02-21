@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+        body {
+            background: #111;
+            color: #0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: sans-serif;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 3em;
+            margin: 0;
+        }
+
+        p {
+            font-size: 1.5em;
+            color: #888;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>✅ CONNECTIVITY SUCCESS</h1>
+    <p>The code on disk is reaching the app.</p>
+
+    <div
+        style="margin-top: 30px; padding: 20px; border: 1px solid #333; border-radius: 8px; background: #222; width: 80%;">
+        <h3>Isolated MIDI Scan</h3>
+        <p id="midiStatus" style="font-size: 1em; color: #ff0;">Requesting MIDI Access...</p>
+        <select id="verificationMidiSelect"
+            style="padding: 10px; font-size: 1.1em; width: 100%; background: #333; color: white; border: 1px solid #444; border-radius: 4px;">
+            <option>Scanning...</option>
+        </select>
+        <button onclick="scanMidi()" style="margin-top: 15px; padding: 8px 16px; cursor: pointer;">Manual
+            Refesh</button>
+    </div>
+
+    <p style="font-size: 0.8em; color: #555; margin-top: 20px;">File: src/verification.html</p>
+
+    <script>
+        async function scanMidi() {
+            const status = document.getElementById('midiStatus');
+            const select = document.getElementById('verificationMidiSelect');
+
+            try {
+                status.innerText = "Requesting MIDI Access...";
+                status.style.color = "#ff0";
+
+                if (!navigator.requestMIDIAccess) {
+                    throw new Error("navigator.requestMIDIAccess not found");
+                }
+
+                const access = await navigator.requestMIDIAccess({ sysex: false });
+                status.innerText = "✅ MIDI Access Granted";
+                status.style.color = "#0f0";
+
+                select.innerHTML = "";
+                const inputs = Array.from(access.inputs.values());
+
+                if (inputs.length === 0) {
+                    const opt = document.createElement('option');
+                    opt.text = "No devices detected";
+                    select.add(opt);
+                } else {
+                    inputs.forEach(input => {
+                        const opt = document.createElement('option');
+                        opt.text = input.name || input.id;
+                        select.add(opt);
+                    });
+                }
+            } catch (err) {
+                status.innerText = "❌ FAILED: " + err.message;
+                status.style.color = "#f00";
+                select.innerHTML = "<option>Error during scan</option>";
+            }
+        }
+
+        // Auto-run on load
+        window.onload = scanMidi;
+    </script>
+</body>
+
+</html>

@@ -1,47 +1,364 @@
 <!DOCTYPE html>
 <html>
 
-<body
-    style="background:#111;color:#eee;font-family:'Segoe UI', sans-serif;margin:0;padding:20px;display:flex;flex-direction:column;gap:20px;">
-    <h1 style="font-weight:300;letter-spacing:1px;margin-bottom:10px;">Ableton Harmonic Companion</h1>
+<head>
+    <title>DAW Musical Companion</title>
+</head>
 
-    <div style="background:#222;padding:15px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.3);">
-        <label for="midiInputSelect" style="display:block;margin-bottom:8px;font-size:0.9em;color:#aaa;">MIDI Input
-            Device</label>
-        <div style="display:flex;gap:10px;">
+<style>
+    body.background-calendar {
+        background: #111;
+    }
+
+    body.background-ambient {
+        background: radial-gradient(circle at center, #2c3e50, #000);
+        background-attachment: fixed;
+    }
+
+    body.background-studio {
+        background: linear-gradient(180deg, #333, #111);
+        background-attachment: fixed;
+    }
+
+    body.calendar-bg::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.35);
+        pointer-events: none;
+        z-index: -1;
+    }
+
+    .bg-toggle {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.75em;
+        color: #888;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .bg-toggle input {
+        cursor: pointer;
+    }
+
+    .bg-toggle {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.75em;
+        color: #888;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .help-panel {
+        background: #222;
+        border: 1px solid #444;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 20px;
+        overflow: hidden;
+        transition: max-height 0.3s ease-out, opacity 0.3s ease-out, padding 0.3s ease;
+        max-height: 0;
+        opacity: 0;
+        padding-top: 0;
+        padding-bottom: 0;
+        border-width: 0;
+    }
+
+    .help-panel.visible {
+        max-height: 500px;
+        opacity: 1;
+        padding: 15px;
+        border-width: 1px;
+    }
+
+    .help-section h3 {
+        margin: 0 0 5px 0;
+        font-size: 0.9em;
+        color: #ddd;
+    }
+
+    .help-section p {
+        margin: 0 0 10px 0;
+        font-size: 0.8em;
+        color: #aaa;
+        line-height: 1.4;
+    }
+</style>
+
+<body
+    style="color:#eee;font-family:'Segoe UI', sans-serif;margin:0;padding:20px;display:flex;flex-direction:column;gap:20px;">
+
+    <!-- Header: Title + MIDI Device -->
+    <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+        <h1 style="font-weight:300;letter-spacing:1px;margin:0;flex:0 0 auto;">DAW Musical Companion</h1>
+        <div style="flex:1;min-width:200px;display:flex;gap:10px;align-items:center;">
+            <label for="midiInputSelect" style="font-size:0.8em;color:#888;white-space:nowrap;">MIDI Input:</label>
             <select id="midiInputSelect"
-                style="flex-grow:1;padding:8px;background:#333;color:white;border:1px solid #444;border-radius:4px;outline:none;">
+                style="flex-grow:1;padding:6px 8px;background:#333;color:white;border:1px solid #444;border-radius:4px;outline:none;font-size:0.85em;">
                 <option value="">Scanning for devices...</option>
             </select>
             <button id="refreshMidiBtn"
-                style="padding:8px 15px;background:#444;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.9em;">&#x21bb;</button>
+                style="padding:6px 12px;background:#444;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.85em;">&#x21bb;</button>
+
+            <label for="progressionBankSelect"
+                style="font-size:0.8em;color:#888;white-space:nowrap;margin-left:10px;">Bank:</label>
+            <select id="progressionBankSelect"
+                style="padding:6px 8px;background:#333;color:white;border:1px solid #444;border-radius:4px;outline:none;font-size:0.85em;width:60px;">
+                <option value="A">A</option>
+                <option value="B">B</option>
+                <option value="C">C</option>
+                <option value="D">D</option>
+            </select>
+        </div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;">
+        <button id="helpToggleBtn"
+            style="padding:5px 10px;background:#334455;color:#ddeeff;border:1px solid #445566;border-radius:4px;cursor:pointer;font-size:0.8em;">Harmonic
+            Help</button>
+        <select id="bgSelect"
+            style="padding:5px 8px;background:#222;color:#bbb;border:1px solid #333;border-radius:4px;outline:none;font-size:0.8em;">
+            <option value="None">No Background</option>
+            <option value="Calendar">Calendar Girl</option>
+            <option value="Ambient">Ambient</option>
+            <option value="Studio">Studio</option>
+        </select>
+    </div>
+
+    <!-- Analysis Footer & Loop Status -->
+    <div id="analysisFooter"
+        style="background:#111;padding:10px;border-top:1px solid #222;display:flex;justify-content:space-between;align-items:center;font-size:0.85em;">
+        <div id="modalContextDisplay" style="color:#888;">Key Context: —</div>
+
+        <div id="loopNotDetectedPanel" style="display:none;color:#ff6666;font-style:italic;">
+            <span style="margin-right:8px;">⚠️ MIDI Loop Not Detected</span>
+            <button id="launchLoopMidiBtn"
+                style="background:#332222;color:#ffaaaa;border:1px solid #442222;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:0.9em;">Setup
+                loopMIDI</button>
+        </div>
+
+        <div id="loopMidiStatus" style="color:#66cc66;">Status: Ready</div>
+    </div>
+
+    <!-- Live Detection Container -->
+    <div id="liveDetectionContainer"
+        style="background:#222;padding:15px 20px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.3);display:flex;flex-direction:row;justify-content:space-between;align-items:center;">
+        <div id="liveChordDisplay"
+            style="width:65%;font-size:3em;font-weight:bold;color:#ffcc00;text-shadow:0 0 15px rgba(255, 204, 0, 0.3);">
+            -
+        </div>
+        <div id="liveKeyNotesContainer"
+            style="width:35%;display:flex;flex-direction:column;justify-content:center;text-align:right;">
+            <div id="liveKeyDisplay" style="font-size:1.1em;color:#aaa;margin-bottom:4px;">Key: -</div>
+            <div id="liveNotesDisplay" style="font-size:0.85em;color:#8899bb;opacity:0.85;">-</div>
+            <div id="activeNotesDisplay" style="font-size:0.75em;color:#4db8ff;margin-top:6px;opacity:0.7;">
+                Waiting for input...
+            </div>
         </div>
     </div>
 
+    <!-- Help Panel -->
+    <div id="helpPanel" class="help-panel">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;">
+            <div class="help-section">
+                <h3 style="color:#66cc66;">&#9835; Functional Chords</h3>
+                <p>Derived from the detected key's scale (I, ii, V, etc.). These chords follow traditional harmonic
+                    gravity and are the foundation of most progressions.</p>
+            </div>
+            <div class="help-section">
+                <h3 style="color:#bb99ee;">&#9839; Modal Interchange</h3>
+                <p>Borrowed from parallel modes (e.g., using C Minor chords in C Major). Perfect for adding unexpected
+                    emotional shifts and specialized color.</p>
+            </div>
+            <div class="help-section">
+                <h3 style="color:#ccaa66;">&#43; Voicings & Extensions</h3>
+                <p>Adds Maj7, Add9, or inversions. These modify the texture of a chord without changing its fundamental
+                    functional role in the key.</p>
+            </div>
+            <div class="help-section">
+                <h3 style="color:#66aacc;">&#8597; Interval Stacks</h3>
+                <p>Non-tertian builds (4ths, 5ths, clusters). Useful for sparse input or ambient textures where standard
+                    triads feel too "busy".</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Unified Candidate Panel -->
+    <div id="candidatePanel" style="display:flex;gap:12px;flex-wrap:wrap;">
+        <div id="functionalGroup" class="candidate-group"
+            style="flex:1;min-width:180px;background:#1a2a1a;padding:12px;border-radius:8px;border:1px solid #2a3a2a;">
+            <div class="group-label" style="margin:0 0 8px 0;font-size:0.8em;color:#66cc66;font-weight:bold;">&#9835;
+                Functional</div>
+            <div id="functionalChords" style="font-size:0.85em;color:#aaa;line-height:1.8;">—</div>
+        </div>
+        <div id="modalGroup" class="candidate-group"
+            style="flex:1;min-width:180px;background:#1a1a2a;padding:12px;border-radius:8px;border:1px solid #2a2a3a;">
+            <div class="group-label" style="margin:0 0 8px 0;font-size:0.8em;color:#bb99ee;font-weight:bold;">&#9839;
+                Modal</div>
+            <div id="modalChords" style="font-size:0.85em;color:#aaa;line-height:1.8;">—</div>
+        </div>
+        <div id="voicingGroup" class="candidate-group"
+            style="flex:1;min-width:180px;background:#2a2a1a;padding:12px;border-radius:8px;border:1px solid #3a3a2a;">
+            <div class="group-label" style="margin:0 0 8px 0;font-size:0.8em;color:#ccaa66;font-weight:bold;">&#43;
+                Voicings <span style="font-weight:normal;color:#888;font-size:0.85em;">(drag)</span></div>
+            <div id="voicingChords" style="font-size:0.85em;color:#aaa;line-height:1.8;">—</div>
+        </div>
+        <div id="intervalGroup" class="candidate-group"
+            style="flex:1;min-width:180px;background:#1a2a2a;padding:12px;border-radius:8px;border:1px solid #2a3a3a;">
+            <div class="group-label" style="margin:0 0 8px 0;font-size:0.8em;color:#66aacc;font-weight:bold;">&#8597;
+                Interval Stack</div>
+            <div id="intervalChords" style="font-size:0.85em;color:#aaa;line-height:1.8;">—</div>
+        </div>
+    </div>
+
+    </div>
+    </div>
+
+    <!-- Playback Controls -->
     <div
-        style="background:#222;padding:20px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.3);min-height:100px;display:flex;align-items:center;justify-content:center;">
-        <div id="activeNotesDisplay" style="font-size:2em;font-weight:bold;color:#4db8ff;text-align:center;">
-            Waiting for input...
+        style="display:flex;align-items:center;gap:12px;margin-bottom:12px;padding-top:10px;border-top:1px solid #2a2a3a;">
+        <div style="display:flex;align-items:center;gap:6px;">
+            <label style="font-size:0.75em;color:#666;">MIDI Out:</label>
+            <select id="midiOutputSelect"
+                style="padding:4px 8px;background:#222;color:#eee;border:1px solid #444;border-radius:3px;font-size:0.8em;min-width:150px;">
+                <option value="">None</option>
+            </select>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+            <label style="font-size:0.75em;color:#666;">BPM:</label>
+            <input id="progressionBpmInput" type="number" min="60" max="200" value="120"
+                style="width:50px;padding:4px;background:#222;color:#eee;border:1px solid #444;border-radius:3px;font-size:0.8em;text-align:center;">
+        </div>
+        <div style="display:flex;gap:6px;">
+            <button id="playProgressionBtn"
+                style="padding:4px 12px;background:#224422;color:#88cc88;border:1px solid #335533;border-radius:3px;cursor:pointer;font-size:0.8em;">&#9654;
+                Play</button>
+            <button id="stopProgressionBtn"
+                style="padding:4px 12px;background:#442222;color:#cc8888;border:1px solid #553333;border-radius:3px;cursor:pointer;font-size:0.8em;">&#9632;
+                Stop</button>
         </div>
     </div>
 
+    <div style="margin-bottom:10px;">
+        <div style="font-size:0.75em;color:#7766aa;margin-bottom:4px;">Suggested Next Chords:</div>
+        <div id="progression-suggestions" style="font-size:0.85em;color:#aaa;line-height:1.8;">—</div>
+    </div>
+
+    <div>
+        <div
+            style="font-size:0.75em;color:#7766aa;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
+            <span>Current Progression: <span style="color:#555;font-size:0.9em;">(drop chords or extensions
+                    here)</span></span>
+            <div style="display:flex;gap:10px;align-items:center;">
+                <label style="font-size:0.8em;color:#555;">Mem:</label>
+                <input id="progressionMemoryInput" type="number" value="3" min="1" max="8"
+                    style="width:35px;background:#222;color:#888;border:1px solid #333;font-size:0.8em;text-align:center;">
+                <button id="clearProgressionBtn"
+                    style="background:transparent;color:#664444;border:none;cursor:pointer;font-size:0.8em;">Clear</button>
+            </div>
+        </div>
+        <div id="current-progression"
+            style="font-size:0.9em;color:#ddd;line-height:2;min-height:28px;background:rgba(0,0,0,0.2);border-radius:4px;padding:4px 8px;border:1px dashed #333;">
+            —</div>
+        <div id="progressionAppendTarget"
+            style="margin-top:4px;height:24px;border:1px dashed #2a2a3a;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#444;font-size:0.75em;cursor:pointer;">
+            + Drag here to append or click for detected tonic</div>
+    </div>
+
+    <!-- loopMIDI Status (Floating/Conditional Bridge) -->
+    <div id="loopMidiBridge"
+        style="display:none;background:#2a1a1a;border:1px solid #442222;padding:6px 12px;border-radius:4px;margin-top:10px;justify-content:space-between;align-items:center;">
+        <span style="color:#ffaaaa;font-size:0.8em;">⚠️ loopMIDI not detected on system</span>
+        <button id="launchLoopMidiBtn"
+            style="background:#442222;color:white;border:none;padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.75em;">Setup</button>
+    </div>
+
+    <!-- Export Controls -->
+    <div
+        style="margin-top:10px;padding-top:10px;border-top:1px solid #2a2a3a;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <label style="font-size:0.75em;color:#666;">Beats/Chord:</label>
+        <select id="beatsPerChordSelect"
+            style="padding:3px 6px;background:#333;color:#eee;border:1px solid #444;border-radius:3px;font-size:0.8em;">
+            <option value="1">1</option>
+            <option value="2" selected>2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+        </select>
+        <label style="font-size:0.75em;color:#666;">Register:</label>
+        <select id="registerSelect"
+            style="padding:3px 6px;background:#333;color:#eee;border:1px solid #444;border-radius:3px;font-size:0.8em;">
+            <option value="Sub">Sub (1–2)</option>
+            <option value="Bass">Bass (2–3)</option>
+            <option value="Mid" selected>Mid (3–4)</option>
+            <option value="Harmony">Harmony (4–5)</option>
+        </select>
+        <label style="font-size:0.75em;color:#666;">Voicing:</label>
+        <select id="voicingStyleSelect"
+            style="padding:3px 6px;background:#333;color:#eee;border:1px solid #444;border-radius:3px;font-size:0.8em;">
+            <option value="Root Only">Root Only</option>
+            <option value="Root + 5th">Root + 5th</option>
+            <option value="Root + 10th">Root + 10th</option>
+            <option value="Triad" selected>Triad</option>
+        </select>
+        <button id="exportMidiBtn"
+            style="padding:5px 14px;background:#2a3355;color:#8899cc;border:1px solid #3a4466;border-radius:4px;cursor:pointer;font-size:0.8em;">&#9835;
+            Export MIDI</button>
+    </div>
+    </div>
+
+    <!-- Recent Activity Log -->
     <div
         style="background:#222;padding:15px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.3);flex-grow:1;display:flex;flex-direction:column;">
-        <h3 style="margin:0 0 10px 0;font-size:1em;color:#aaa;">Recent Activity</h3>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <h3 style="margin:0;font-size:1em;color:#aaa;">Recent Activity</h3>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <label style="font-size:0.75em;color:#666;">Limit:</label>
+                <input id="logLimitInput" type="number" value="50" min="1" max="500"
+                    style="width:50px;padding:3px 5px;background:#333;color:#eee;border:1px solid #444;border-radius:3px;font-size:0.8em;text-align:center;">
+                <button id="logPauseBtn"
+                    style="padding:3px 10px;background:#444;color:#ccc;border:1px solid #555;border-radius:3px;cursor:pointer;font-size:0.75em;">Pause
+                    Feed</button>
+            </div>
+        </div>
         <div id="midiLog"
             style="flex-grow:1;overflow-y:auto;font-family:monospace;font-size:0.9em;color:#888;max-height:150px;">
             <!-- Log entries will appear here -->
         </div>
     </div>
 
-    <!-- Debug Section -->
-    <div style="background:#330000;padding:10px;border-radius:4px;color:#ff9999;font-size:0.8em;margin-top:10px;">
+    <!-- Suggestion Detail Tooltip (hidden by default) -->
+    <div id="suggestion-detail"
+        style="display:none;position:fixed;background:#2a2a2a;border:1px solid #555;border-radius:6px;padding:10px 14px;font-size:0.85em;color:#ddd;box-shadow:0 4px 12px rgba(0,0,0,0.5);z-index:1000;pointer-events:none;max-width:280px;">
+    </div>
+
+    <!-- Toggle Debug Button -->
+    <div style="text-align:right;">
+        <button id="toggleDebugBtn"
+            style="background:#333;color:#888;border:1px solid #444;padding:5px 10px;border-radius:4px;cursor:pointer;font-size:0.8em;">Show
+            Debug</button>
+    </div>
+
+    <!-- Debug Section (Hidden by default) -->
+    <div id="debugSection"
+        style="display:none;background:#330000;padding:10px;border-radius:4px;color:#ff9999;font-size:0.8em;margin-top:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
             <strong>Debug Log:</strong>
             <button onclick="require('electron').ipcRenderer.send('toggle-dev-tools')"
                 style="padding:2px 8px;background:#500;color:white;border:1px solid #700;cursor:pointer;">DevTools</button>
         </div>
         <pre id="debugDeviceList" style="margin:0;white-space:pre-wrap;">Initializing...</pre>
+    </div>
+
+    <!-- Version Footer -->
+    <div id="version-footer"
+        style="text-align:center;font-size:0.7em;color:#444;padding:5px 0;border-top:1px solid #222;">
+        v—
     </div>
 
     <script>
