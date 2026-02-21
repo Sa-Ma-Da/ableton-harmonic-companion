@@ -52,32 +52,6 @@ ipcMain.on('toggle-dev-tools', (event) => {
   if (win) win.webContents.toggleDevTools();
 });
 
-// loopMIDI launch handler
-ipcMain.on('launch-loopmidi', (event) => {
-  const loopMidiPaths = [
-    'C:\\Program Files (x86)\\Tobias Erichsen\\loopMIDI\\loopMIDI.exe',
-    'C:\\Program Files\\Tobias Erichsen\\loopMIDI\\loopMIDI.exe'
-  ];
-
-  const fs = require('fs');
-  let exePath = null;
-  for (const p of loopMidiPaths) {
-    if (fs.existsSync(p)) { exePath = p; break; }
-  }
-
-  if (!exePath) {
-    event.reply('loopmidi-status', { running: false, error: 'loopMIDI not found. Install from https://www.tobias-erichsen.de/software/loopmidi.html' });
-    return;
-  }
-
-  try {
-    const child = spawn(exePath, [], { detached: true, stdio: 'ignore' });
-    child.unref();
-    event.reply('loopmidi-status', { running: true, launched: true });
-  } catch (err) {
-    event.reply('loopmidi-status', { running: false, error: `Launch failed: ${err.message}` });
-  }
-});
 
 // MIDI export save dialog handler
 ipcMain.handle('save-midi-dialog', async (event) => {

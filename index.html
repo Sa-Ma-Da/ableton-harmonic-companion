@@ -246,38 +246,31 @@
     </div>
 
     <div style="margin-bottom:10px;">
-        <div style="font-size:0.75em;color:#7766aa;margin-bottom:4px;">Suggested Next Chords:</div>
-        <div id="progression-suggestions" style="font-size:0.85em;color:#aaa;line-height:1.8;">—</div>
+        <div style="font-size:0.85em;color:#7766aa;margin-bottom:4px;">Suggested Next Chords:</div>
+        <div id="progression-suggestions" style="font-size:0.95em;color:#aaa;line-height:1.8;">—</div>
     </div>
 
     <div>
         <div
-            style="font-size:0.75em;color:#7766aa;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
-            <span>Current Progression: <span style="color:#555;font-size:0.9em;">(drop chords or extensions
+            style="font-size:0.85em;color:#7766aa;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
+            <span>Current Progression: <span style="color:#555;font-size:0.95em;">(drop chords or extensions
                     here)</span></span>
-            <div style="display:flex;gap:10px;align-items:center;">
-                <label style="font-size:0.8em;color:#555;">Mem:</label>
+            <div style="display:flex;gap:12px;align-items:center;">
+                <label style="font-size:0.9em;color:#555;">Mem:</label>
                 <input id="progressionMemoryInput" type="number" value="3" min="1" max="8"
-                    style="width:35px;background:#222;color:#888;border:1px solid #333;font-size:0.8em;text-align:center;">
+                    style="width:45px;background:#222;color:#888;border:1px solid #333;font-size:0.9em;text-align:center;">
                 <button id="clearProgressionBtn"
-                    style="background:transparent;color:#664444;border:none;cursor:pointer;font-size:0.8em;">Clear</button>
+                    style="background:transparent;color:#664444;border:none;cursor:pointer;font-size:0.9em;">Clear</button>
             </div>
         </div>
         <div id="current-progression"
-            style="font-size:0.9em;color:#ddd;line-height:2;min-height:28px;background:rgba(0,0,0,0.2);border-radius:4px;padding:4px 8px;border:1px dashed #333;">
+            style="font-size:1.0em;color:#ddd;line-height:2.2;min-height:32px;background:rgba(0,0,0,0.2);border-radius:4px;padding:6px 10px;border:1px dashed #333;">
             —</div>
         <div id="progressionAppendTarget"
-            style="margin-top:4px;height:24px;border:1px dashed #2a2a3a;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#444;font-size:0.75em;cursor:pointer;">
+            style="margin-top:4px;height:32px;border:1px dashed #2a2a3a;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#444;font-size:0.85em;cursor:pointer;">
             + Drag here to append or click for detected tonic</div>
     </div>
 
-    <!-- loopMIDI Status (Floating/Conditional Bridge) -->
-    <div id="loopMidiBridge"
-        style="display:none;background:#2a1a1a;border:1px solid #442222;padding:6px 12px;border-radius:4px;margin-top:10px;justify-content:space-between;align-items:center;">
-        <span style="color:#ffaaaa;font-size:0.8em;">⚠️ loopMIDI not detected on system</span>
-        <button id="launchLoopMidiBtn"
-            style="background:#442222;color:white;border:none;padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.75em;">Setup</button>
-    </div>
 
     <!-- Export Controls -->
     <div

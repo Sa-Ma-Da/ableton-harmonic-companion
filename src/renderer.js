@@ -60,10 +60,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             currentProgression: document.getElementById('current-progression'),
             modeLockSelect: document.getElementById('modeLockSelect'),
             modalContextDisplay: document.getElementById('modalContextDisplay'),
-            // loopMIDI
-            loopMidiBridge: document.getElementById('loopMidiBridge'),
-            launchLoopMidiBtn: document.getElementById('launchLoopMidiBtn'),
-            loopMidiStatus: document.getElementById('loopMidiStatus'),
             // Version footer
             versionFooter: document.getElementById('version-footer'),
             // MIDI Export
@@ -258,8 +254,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 midiManager.on('note-off', handleNoteEvent);
                 logMessage('MIDI listeners attached.');
 
-                // loopMIDI detection
-                detectLoopMidi();
             } else {
                 logMessage('ERROR: MIDI access failed!');
                 const option = document.createElement('option');
@@ -269,37 +263,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        // ---- loopMIDI Detection ----
-        function detectLoopMidi() {
-            const inputs = midiManager.getInputs();
-            const hasLoopMidi = inputs.some(i => i.name && i.name.toLowerCase().includes('loopmidi'));
-            if (ui.loopMidiBridge) {
-                ui.loopMidiBridge.style.display = hasLoopMidi ? 'none' : 'flex';
-            }
-        }
-
-        if (ui.launchLoopMidiBtn) {
-            ui.launchLoopMidiBtn.addEventListener('click', () => {
-                try {
-                    const { ipcRenderer } = require('electron');
-                    ipcRenderer.send('launch-loopmidi');
-                    if (ui.loopMidiStatus) ui.loopMidiStatus.textContent = 'Launching...';
-
-                    ipcRenderer.once('loopmidi-status', (event, status) => {
-                        if (status.running) {
-                            if (ui.loopMidiStatus) ui.loopMidiStatus.textContent = 'Launched!';
-                            logMessage('loopMIDI launched successfully.');
-                            setTimeout(() => detectLoopMidi(), 2000);
-                        } else {
-                            if (ui.loopMidiStatus) ui.loopMidiStatus.textContent = status.error || 'Launch failed';
-                            logMessage(`loopMIDI: ${status.error || 'Launch failed'}`);
-                        }
-                    });
-                } catch (err) {
-                    if (ui.loopMidiStatus) ui.loopMidiStatus.textContent = 'Error: ' + err.message;
-                }
-            });
-        }
 
         // ---- Device List ----
         function updateDeviceList() {
@@ -522,7 +485,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ui.progressionSuggestions.innerHTML = suggestions.map(s => {
                 const badge = s.function ? `<span style="color:#bb88ff;font-size:0.75em;"> ${s.function}</span>` : '';
                 const conf = s.confidence ? `<span style="color:#666;font-size:0.65em;"> ${Math.round(s.confidence * 100)}%</span>` : '';
-                return `<span data-chord="${s.name}" draggable="true" data-drag-type="chord" style="display:inline-block;background:#2a2a3a;padding:2px 8px;border-radius:4px;margin:2px 4px 2px 0;border:1px solid #3a3a4a;cursor:grab;" title="Drag to slot or click to add">${s.name}${badge}${conf}</span>`;
+                return `<span data-chord="${s.name}" draggable="true" data-drag-type="chord" style="display:inline-block;background:#2a2a3a;padding:4px 10px;border-radius:4px;margin:2px 4px 2px 0;border:1px solid #3a3a4a;cursor:grab;" title="Drag to slot or click to add">${s.name}${badge}${conf}</span>`;
             }).join('');
 
             // Make progression suggestion chips draggable
@@ -546,7 +509,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             ui.currentProgression.innerHTML = progressionBanks[activeBank].map((chord, i) => {
                 const sep = i < progressionBanks[activeBank].length - 1 ? ' <span style="color:#555;">→</span> ' : '';
-                return `<span data-chord="${chord}" data-prog-index="${i}" data-slot-index="${i}" class="progression-slot" style="display:inline-block;background:#2a223a;padding:2px 8px;border-radius:4px;margin:2px 2px;border:1px solid #3a2a4a;cursor:pointer;transition:border-color 0.2s;" title="Click to remove · Drop chord to replace · Drop extension to transform">${chord}</span>${sep}`;
+                return `<span data-chord="${chord}" data-prog-index="${i}" data-slot-index="${i}" class="progression-slot" style="display:inline-block;background:#2a223a;padding:4px 10px;border-radius:4px;margin:2px 3px;border:1px solid #3a2a4a;cursor:pointer;transition:border-color 0.2s;" title="Click to remove · Drop chord to replace · Drop extension to transform">${chord}</span>${sep}`;
             }).join('');
 
             // Attach drop target handlers to each slot
@@ -601,7 +564,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             });
 
-            // Attach handlers to Append Target
+        }
+
+        function initProgressionTarget() {
             const appendTarget = document.getElementById('progressionAppendTarget');
             if (appendTarget) {
                 appendTarget.addEventListener('dragover', (e) => {
@@ -1069,20 +1034,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
 
-        // Force UI Branding Restore (Ensures no caching of old title)
-        document.title = "DAW Musical Companion";
-        const headerH1 = document.querySelector('h1');
-        if (headerH1) headerH1.innerText = "DAW Musical Companion";
-
-        // Forced Branding Restore (Confirming Live Link)
-        document.title = "DAW Musical Companion [LIVE]";
-        const h1 = document.querySelector('h1');
-        if (h1) {
-            h1.innerText = "DAW Musical Companion";
-            h1.style.color = "#4db8ff"; // Slight color shift to prove code is live
-        }
 
         initBackgroundSelector();
+        initProgressionTarget();
         logMessage('SYSTEM: DAW Musical Companion Booting...');
         await initializeMidi();
         logMessage('Init complete.');
