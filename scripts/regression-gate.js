@@ -40,6 +40,16 @@ const COMPONENT_MAP = {
         files: ['src/harmonic-analyzer.js', 'src/chord-dictionary.js'],
         description: 'Chord detection logic'
     },
+    'midi-exporter.js': {
+        component: 'MIDI Export',
+        files: ['src/midi-exporter.js', 'src/note-utils.js'],
+        description: 'MIDI file generation logic'
+    },
+    'midi-output.js': {
+        component: 'MIDI Output',
+        files: ['src/midi-output.js'],
+        description: 'Real-time MIDI playback engine'
+    },
     'integration.test.js': {
         component: 'MIDI Integration',
         files: ['src/midi-manager.js', 'src/harmonic-analyzer.js'],
@@ -52,13 +62,13 @@ const COMPONENT_MAP = {
     },
     'functional-contract.test.js': {
         component: 'Core Contract',
-        files: ['src/renderer.js', 'src/midi-manager.js', 'src/harmonic-analyzer.js', 'src/key-detector.js', 'index.html'],
-        description: '9 baseline UI/MIDI/analysis capabilities'
+        files: ['src/renderer.js', 'src/midi-manager.js', 'src/harmonic-analyzer.js', 'src/key-detector.js', 'src/midi-exporter.js', 'src/modal-context.js', 'src/suggestion-engine.js', 'src/scale-dictionary.js', 'src/chord-dictionary.js', 'index.html'],
+        description: '33 baseline UI/MIDI/analysis/export/modal/extension/voicing/scale/modal-stack/voice-leading capabilities'
     },
     'behavioral-regression.test.js': {
         component: 'Behavioral Regression',
-        files: ['src/renderer.js', 'src/midi-manager.js', 'src/harmonic-analyzer.js', 'src/key-detector.js', 'src/note-utils.js', 'index.html'],
-        description: 'Full application lifecycle: launch → enumerate → select → play → analyze → refresh'
+        files: ['src/renderer.js', 'src/midi-manager.js', 'src/harmonic-analyzer.js', 'src/key-detector.js', 'src/note-utils.js', 'src/midi-exporter.js', 'src/modal-context.js', 'src/suggestion-engine.js', 'index.html'],
+        description: 'Full application lifecycle: launch → enumerate → select → play → analyze → export → modal → candidate panel → extension drop → banks → voicing → live detection → modal stack → voice leading → bg toggle'
     },
     'suggestion-engine.test.js': {
         component: 'Suggestion Engine',

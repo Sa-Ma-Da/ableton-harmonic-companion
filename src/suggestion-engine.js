@@ -11,6 +11,15 @@ const { CHORD_INTERVALS } = require('./chord-dictionary');
 const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const DEGREE_NAMES = ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°'];
 
+// ---- Extension Classification ----
+const QUALITY_DEPENDENT_EXTENSIONS = [
+    'Maj7', 'min7', '#11', 'b9', 'b6'
+];
+
+const MODAL_STACK_EXTENSIONS = [
+    'add2', 'add4', 'add6', 'add9', 'add11', 'add13', 'no3', 'no5'
+];
+
 // ---- Helpers (internal) ----
 
 /**
@@ -18,6 +27,23 @@ const DEGREE_NAMES = ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°'];
  */
 function noteToPC(name) {
     return NOTE_NAMES.indexOf(name);
+}
+
+/**
+ * Calculate voice leading cost between two sets of MIDI notes.
+ * Sum of minimum distances from each note in prevNotes to closest note in nextNotes.
+ * Lower cost = better voice leading (smoother motion).
+ */
+function calculateVoiceLeadingCost(prevNotes, nextNotes) {
+    let cost = 0;
+    prevNotes.forEach(p => {
+        let min = Infinity;
+        nextNotes.forEach(n => {
+            min = Math.min(min, Math.abs(p - n));
+        });
+        cost += min;
+    });
+    return cost;
 }
 
 /**
@@ -236,6 +262,25 @@ function suggestExtensions(currentChord) {
         });
     }
 
+    // Modal stack extensions for suspended / power / modal voicings
+    const intervals = getIntervalsForQuality(parsed.quality);
+    if (intervals) {
+        const hasMinor3rd = intervals.includes(3);
+        const hasMajor3rd = intervals.includes(4);
+        const isModalVoicing = !hasMinor3rd && !hasMajor3rd;
+
+        if (isModalVoicing) {
+            for (const ext of MODAL_STACK_EXTENSIONS) {
+                suggestions.push({
+                    name: ext,
+                    function: `modal stack: ${ext}`,
+                    confidence: 0.6,
+                    quality: ext
+                });
+            }
+        }
+    }
+
     return suggestions.sort((a, b) => b.confidence - a.confidence);
 }
 
@@ -397,9 +442,9 @@ function suggestNextChords(chordHistory, key, memoryLength = 3) {
             }
         }
 
-        // Penalize repeating the last chord
+        // Mild deprioritization for repeating the last chord (still appears as option)
         if (parsedLast && candidate.rootPC === parsedLast.rootPC && candidate.quality === parsedLast.quality) {
-            score -= 1.0;
+            score -= 0.35;
         }
 
         // Small penalty for chords already in recent history
@@ -416,6 +461,24 @@ function suggestNextChords(chordHistory, key, memoryLength = 3) {
             confidence: Math.max(0, Math.min(1, score))
         };
     });
+
+    // Voice Leading Optimization
+    if (parsedLast) {
+        const prevMeta = getChordMetadata(lastChord, 4);
+        if (prevMeta && prevMeta.midiNotes) {
+            scored.forEach(s => {
+                const nextMeta = getChordMetadata(s.name, 4);
+                if (nextMeta && nextMeta.midiNotes) {
+                    const cost = calculateVoiceLeadingCost(prevMeta.midiNotes, nextMeta.midiNotes);
+                    s.voiceCost = cost;
+                    // Penalize high movement cost
+                    s.confidence -= (cost * 0.05);
+                    // Clamping
+                    s.confidence = Math.max(0, Math.min(1, s.confidence));
+                }
+            });
+        }
+    }
 
     // Sort by confidence descending, take top 2–5
     scored.sort((a, b) => b.confidence - a.confidence);
@@ -452,5 +515,93 @@ function getChordMetadata(chordName, octave = 4) {
     return { noteNames, midiNotes, fingering };
 }
 
-module.exports = { suggestDiatonicChords, suggestScales, suggestExtensions, suggestIntervals, suggestNextChords, getChordMetadata };
+/**
+ * Apply an extension to a base chord, producing a new chord name.
+ * E.g. applyExtension("C Major", "Maj7") → "C Maj7"
+ *
+ * @param {string} baseChord - e.g. "C Major", "A Minor"
+ * @param {string} extensionType - e.g. "Maj7", "Dom7", "Min7", "Sus4"
+ * @returns {string|null} - New chord name or null if invalid
+ */
+function applyExtension(baseChord, extensionType) {
+    const parsed = parseChordOrKey(baseChord);
+    if (!parsed) return null;
+    if (!extensionType || typeof extensionType !== 'string') return null;
+
+    // Get intervals for the base chord quality (handle compound modals like "Sus4 add2")
+    const qualityParts = parsed.quality.split(' ');
+    let intervals = getIntervalsForQuality(parsed.quality);
+    let baseQuality = parsed.quality;
+
+    // If direct lookup fails, try base quality (first word) for compound modal chords
+    if (!intervals && qualityParts.length > 1) {
+        baseQuality = qualityParts[0];
+        intervals = getIntervalsForQuality(baseQuality);
+        // Verify remaining parts are all modal stack extensions
+        const modifiers = qualityParts.slice(1);
+        if (intervals && !modifiers.every(m => MODAL_STACK_EXTENSIONS.includes(m))) {
+            intervals = null; // Not a valid compound modal
+        }
+    }
+
+    // Detect suspended / modal voicing
+    const hasMinor3rd = intervals ? intervals.includes(3) : false;
+    const hasMajor3rd = intervals ? intervals.includes(4) : false;
+    const isModalVoicing = intervals ? (!hasMinor3rd && !hasMajor3rd) : false;
+
+    // Reject quality-dependent extensions on modal voicings
+    if (isModalVoicing && QUALITY_DEPENDENT_EXTENSIONS.includes(extensionType)) {
+        return null;
+    }
+
+    // Handle modal stack extensions
+    if (isModalVoicing && MODAL_STACK_EXTENSIONS.includes(extensionType)) {
+        const intervalSet = new Set(intervals);
+
+        switch (extensionType) {
+            case 'add2': intervalSet.add(2); break;
+            case 'add4': intervalSet.add(5); break;
+            case 'add6': intervalSet.add(9); break;
+            case 'add9': intervalSet.add(14); break;
+            case 'add11': intervalSet.add(17); break;
+            case 'add13': intervalSet.add(21); break;
+            case 'no3': intervalSet.delete(3); intervalSet.delete(4); break;
+            case 'no5': intervalSet.delete(7); break;
+        }
+
+        // Build a descriptive chord name
+        const modifiers = parsed.quality.includes(' ')
+            ? parsed.quality.split(' ')
+            : [parsed.quality];
+        // Avoid duplicating existent modifier
+        if (!modifiers.includes(extensionType)) {
+            modifiers.push(extensionType);
+        }
+        return `${parsed.root} ${modifiers.join(' ')}`;
+    }
+
+    // Original tonal extension logic
+    const VALID_EXTENSIONS = {
+        'Major': ['Maj7', 'Dom7', 'Maj6', 'Sus4', 'Sus2', 'Add9', '7sus4'],
+        'Minor': ['Min7', 'MinMaj7', 'Min6', 'mAdd9'],
+        'Diminished': ['m7b5 (Half-Dim)', 'Dim7'],
+        'Augmented': []
+    };
+
+    const allowed = VALID_EXTENSIONS[parsed.quality];
+    if (!allowed || !allowed.includes(extensionType)) {
+        const knownQualities = ['Maj7', 'Dom7', 'Min7', 'MinMaj7', 'm7b5 (Half-Dim)', 'Dim7',
+            'Sus4', 'Sus2', '7sus4', 'Maj6', 'Min6', 'Add9', 'mAdd9',
+            'Major', 'Minor', 'Diminished', 'Augmented', '5'];
+        if (!knownQualities.includes(extensionType)) return null;
+    }
+
+    return `${parsed.root} ${extensionType}`;
+}
+
+module.exports = {
+    suggestDiatonicChords, suggestScales, suggestExtensions, suggestIntervals,
+    suggestNextChords, getChordMetadata, applyExtension, calculateVoiceLeadingCost,
+    QUALITY_DEPENDENT_EXTENSIONS, MODAL_STACK_EXTENSIONS
+};
 

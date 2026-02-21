@@ -26,6 +26,9 @@ const CHORD_INTERVALS = {
     "0,2,7": "Sus2",
     "0,5,7,10": "7sus4",
 
+    // Power
+    "0,7": "5",
+
     // Sixths
     "0,4,7,9": "Maj6",
     "0,3,7,9": "Min6",
